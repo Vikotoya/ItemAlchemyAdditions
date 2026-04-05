@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "itemalchemyaddon",
+  "version": "${version}",
+
+  "name": "ItemAlchemyAddon",
+  "description": "",
+  "authors": [],
+  "contact": {},
+
+  "license": "All-Rights-Reserved",
+  "icon": "assets/itemalchemyaddon/icon.png",
+
+  "environment": "*",
+  "entrypoints": {
+    "fabric-datagen": ["pl.viko.itemalchemyaddon.client.ItemAlchemyAddonDataGenerator"],
+    "client": ["pl.viko.itemalchemyaddon.client.ItemAlchemyAddonClient"],
+    "main": ["pl.viko.itemalchemyaddon.ItemAlchemyAddon"]
+  },
+
+  "mixins": [
+    "itemalchemyaddon.mixins.json"
+    ,{
+      "config": "itemalchemyaddon.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}

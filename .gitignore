@@ -1,0 +1,17 @@
+# Gradle files
+.gradle/
+build/
+
+# IntelliJ IDEA files
+.idea/
+*.iml
+*.iws
+out/
+
+# Log files
+logs/
+
+# Minecraft specific
+run/
+usercache.json
+usernamecache.json
