@@ -10,8 +10,16 @@ import pl.viko.itemalchemyaddon.networking.ModMessages;
 import pl.viko.itemalchemyaddon.screen.AlchemicalTableMk2ScreenHandler;
 import pl.viko.itemalchemyaddon.screen.ModScreenHandlers;
 
+/**
+ * Main server-side entry point for the ItemAlchemyAddon mod.
+ *
+ * <p>Registers items, screen handlers, networking packets, server-tick logic
+ * for the Alchemical Table Mk2 burning process, and the {@code /itemalchemyaddon}
+ * command tree.</p>
+ */
 public class ItemAlchemyAddon implements ModInitializer {
 
+    /** The mod identifier used for all registry keys and resource paths. */
     public static final String MOD_ID = "itemalchemyaddon";
 
     @Override
@@ -20,22 +28,18 @@ public class ItemAlchemyAddon implements ModInitializer {
         ModScreenHandlers.registerScreenHandlers();
         ModMessages.registerC2SPackets();
 
-
-        // --- PRZYWRACAMY LOGIKĘ ZEGARA SERWERA ---
+        // Every server tick, advance the burning logic for every player
+        // who currently has the Alchemical Table Mk2 screen open.
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            // Dla każdego gracza na serwerze...
             for (ServerPlayerEntity player : server.getPlayerManager().getPlayerList()) {
-                // ...jeśli ma otwarty nasz ScreenHandler...
-                if (player.currentScreenHandler instanceof AlchemicalTableMk2ScreenHandler) {
-                    // ...wywołujemy jego metodę tick().
-                    ((AlchemicalTableMk2ScreenHandler) player.currentScreenHandler).tick();
+                if (player.currentScreenHandler instanceof AlchemicalTableMk2ScreenHandler handler) {
+                    handler.tick();
                 }
             }
         });
 
-        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
-            ReloadEmcCommand.register(dispatcher);
-        });
-
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) ->
+                ReloadEmcCommand.register(dispatcher)
+        );
     }
 }

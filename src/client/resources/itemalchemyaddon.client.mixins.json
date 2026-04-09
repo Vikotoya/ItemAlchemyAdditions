@@ -4,8 +4,7 @@
   "package": "pl.viko.itemalchemyaddon.mixin",
   "compatibilityLevel": "JAVA_17",
   "client": [
-    "HandledScreenAccessor",
-    "HandledScreenMixin"
+    "HandledScreenAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

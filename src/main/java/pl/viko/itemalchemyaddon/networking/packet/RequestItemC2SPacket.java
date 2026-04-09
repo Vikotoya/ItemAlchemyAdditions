@@ -10,62 +10,85 @@ import net.minecraft.server.network.ServerPlayerEntity;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.mcpitanlib.api.entity.Player;
 
+/**
+ * Handles the client-to-server "request item" packet sent when the player
+ * clicks an item in the Alchemical Table Mk2 transmutation list.
+ *
+ * <p>The packet payload consists of the requested {@link ItemStack} followed
+ * by an {@code int} click-type code that determines the quantity and
+ * destination:</p>
+ * <ul>
+ *   <li>{@code 0} — Left click (no shift): place a single item on the cursor</li>
+ *   <li>{@code 1} — Right click (no shift): place a single item in the inventory</li>
+ *   <li>{@code 2} — Shift + Left click: place a full stack on the cursor</li>
+ *   <li>{@code 3} — Shift + Right click: place a full stack in the inventory</li>
+ * </ul>
+ *
+ * <p>EMC is deducted from the player's balance before any items are granted.
+ * After processing, EMC is synced back to the client.</p>
+ */
 public class RequestItemC2SPacket {
+
+    /**
+     * Server-side receiver for the item-request packet.
+     *
+     * @param server         the Minecraft server instance
+     * @param player         the player who sent the packet
+     * @param handler        the player's network handler
+     * @param buf            the packet data buffer
+     * @param responseSender the response sender (unused)
+     */
     public static void receive(MinecraftServer server, ServerPlayerEntity player, ServerPlayNetworkHandler handler,
                                PacketByteBuf buf, PacketSender responseSender) {
 
-        // Odczytujemy, jaki przedmiot i jaki typ kliknięcia wysłał klient
         ItemStack requestedStack = buf.readItemStack();
         int clickType = buf.readInt();
 
-        // Uruchamiamy logikę na głównym wątku serwera, aby uniknąć problemów
         server.execute(() -> {
             Item requestedItem = requestedStack.getItem();
             long emcCost = EMCManager.get(requestedItem);
-            if (emcCost <= 0) return; // Przerywamy, jeśli przedmiot nie ma wartości EMC
+            if (emcCost <= 0) return;
 
             Player mcpPlayer = new Player(player);
             long playerEmc = EMCManager.getEmcFromPlayer(mcpPlayer);
 
             switch (clickType) {
-                case 2: // Lewy Przycisk Myszy (LPM) - Cały stack na kursor
-                    int maxAmountLMB = Math.min(requestedItem.getMaxCount(), (int) (playerEmc / emcCost));
-                    if (maxAmountLMB > 0 && player.currentScreenHandler.getCursorStack().isEmpty()) {
-                        EMCManager.decrementEmc(mcpPlayer, emcCost * maxAmountLMB);
-                        player.currentScreenHandler.setCursorStack(new ItemStack(requestedItem, maxAmountLMB));
-                    }
-                    break;
-
-                case 0: // Prawy Przycisk Myszy (PPM) - Jeden przedmiot na kursor
-                    ItemStack cursorStackRMB = player.currentScreenHandler.getCursorStack();
+                case 0 -> { // Left click — single item to cursor
+                    ItemStack cursorStack = player.currentScreenHandler.getCursorStack();
                     if (playerEmc >= emcCost) {
-                        if (cursorStackRMB.isEmpty()) {
+                        if (cursorStack.isEmpty()) {
                             EMCManager.decrementEmc(mcpPlayer, emcCost);
                             player.currentScreenHandler.setCursorStack(new ItemStack(requestedItem, 1));
-                        } else if (cursorStackRMB.getItem() == requestedItem && cursorStackRMB.getCount() < requestedItem.getMaxCount()) {
+                        } else if (cursorStack.getItem() == requestedItem
+                                && cursorStack.getCount() < requestedItem.getMaxCount()) {
                             EMCManager.decrementEmc(mcpPlayer, emcCost);
-                            cursorStackRMB.increment(1);
+                            cursorStack.increment(1);
                         }
                     }
-                    break;
-
-                case 3: // Shift + LPM - Cały stack do ekwipunku
-                    int maxAmountShiftLMB = Math.min(requestedItem.getMaxCount(), (int) (playerEmc / emcCost));
-                    if (maxAmountShiftLMB > 0) {
-                        EMCManager.decrementEmc(mcpPlayer, emcCost * maxAmountShiftLMB);
-                        player.getInventory().offerOrDrop(new ItemStack(requestedItem, maxAmountShiftLMB));
-                    }
-                    break;
-
-                case 1: // Shift + PPM - Jeden przedmiot do ekwipunku
+                }
+                case 1 -> { // Right click — single item to inventory
                     if (playerEmc >= emcCost) {
                         EMCManager.decrementEmc(mcpPlayer, emcCost);
                         player.getInventory().offerOrDrop(new ItemStack(requestedItem, 1));
                     }
-                    break;
+                }
+                case 2 -> { // Shift + Left click — full stack to cursor
+                    int maxAmount = Math.min(requestedItem.getMaxCount(), (int) (playerEmc / emcCost));
+                    if (maxAmount > 0 && player.currentScreenHandler.getCursorStack().isEmpty()) {
+                        EMCManager.decrementEmc(mcpPlayer, emcCost * maxAmount);
+                        player.currentScreenHandler.setCursorStack(new ItemStack(requestedItem, maxAmount));
+                    }
+                }
+                case 3 -> { // Shift + Right click — full stack to inventory
+                    int maxAmount = Math.min(requestedItem.getMaxCount(), (int) (playerEmc / emcCost));
+                    if (maxAmount > 0) {
+                        EMCManager.decrementEmc(mcpPlayer, emcCost * maxAmount);
+                        player.getInventory().offerOrDrop(new ItemStack(requestedItem, maxAmount));
+                    }
+                }
+                default -> { }
             }
 
-            // Synchronizujemy EMC z klientem, aby zobaczył zmianę
             EMCManager.syncS2C(mcpPlayer);
         });
     }

@@ -11,32 +11,33 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import pl.viko.itemalchemyaddon.ItemAlchemyAddon;
 
+/**
+ * Registers all custom items and the creative-mode item group for this mod.
+ */
 public class ModItems {
 
-    // 1. Definiujemy nasz nowy przedmiot
+    /** The Alchemical Table Mk2 item (max stack size 1). */
     public static final Item ALCHEMICAL_TABLE_MK2 = registerItem("alchemical_table_mk2",
             new AlchemicalTableMk2Item(new FabricItemSettings().maxCount(1)));
 
-    // 2. Tworzymy nową zakładkę w trybie kreatywnym dla naszego addonu
+    /** Creative-mode tab containing this mod's items. */
     public static final ItemGroup ITEM_ALCHEMY_ADDON_GROUP = Registry.register(Registries.ITEM_GROUP,
             new Identifier(ItemAlchemyAddon.MOD_ID, "item_alchemy_addon_group"),
             FabricItemGroup.builder()
                     .displayName(Text.translatable("itemgroup.itemalchemyaddon"))
                     .icon(() -> new ItemStack(ALCHEMICAL_TABLE_MK2))
-                    .entries((displayContext, entries) -> {
-                        // Dodajemy nasz stół do tej zakładki
-                        entries.add(ALCHEMICAL_TABLE_MK2);
-                    }).build());
+                    .entries((displayContext, entries) -> entries.add(ALCHEMICAL_TABLE_MK2))
+                    .build());
 
-
-    // Prywatna metoda pomocnicza do rejestracji przedmiotów
     private static Item registerItem(String name, Item item) {
         return Registry.register(Registries.ITEM, new Identifier(ItemAlchemyAddon.MOD_ID, name), item);
     }
 
-    // Metoda, którą wywołamy, aby uruchomić rejestrację
+    /**
+     * Forces class loading, which triggers the static field initialisers above
+     * and therefore registers all items and the item group.
+     */
     public static void registerModItems() {
-        // Ta linijka jest pusta, ale jej wywołanie w głównej klasie moda
-        // spowoduje załadowanie tej klasy i wykonanie powyższego kodu.
+        // Intentionally empty — class loading performs the registration.
     }
 }

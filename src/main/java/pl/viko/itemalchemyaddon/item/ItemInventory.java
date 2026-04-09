@@ -7,10 +7,24 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
 import net.minecraft.util.collection.DefaultedList;
 
+/**
+ * An {@link Inventory} implementation backed by an {@link ItemStack}'s NBT data.
+ *
+ * <p>All mutations are immediately serialized back into the host stack's
+ * {@code "Items"} NBT tag, so the inventory contents persist as long as the
+ * stack itself does.</p>
+ */
 public class ItemInventory implements Inventory {
+
     private final ItemStack stack;
     private final DefaultedList<ItemStack> items;
 
+    /**
+     * Creates a new item-backed inventory.
+     *
+     * @param stack the host item stack whose NBT stores the inventory
+     * @param size  the number of slots in this inventory
+     */
     public ItemInventory(ItemStack stack, int size) {
         this.stack = stack;
         this.items = DefaultedList.ofSize(size, ItemStack.EMPTY);
@@ -63,6 +77,7 @@ public class ItemInventory implements Inventory {
         markDirty();
     }
 
+    /** Serializes the current inventory contents back into the host stack's NBT. */
     @Override
     public void markDirty() {
         NbtCompound nbt = stack.getOrCreateNbt();

@@ -3,7 +3,6 @@ package pl.viko.itemalchemyaddon.client;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.screen.ingame.HandledScreens;
 import net.minecraft.item.ItemStack;
@@ -14,7 +13,15 @@ import pl.viko.itemalchemyaddon.screen.EmcEditScreen;
 import pl.viko.itemalchemyaddon.screen.ModScreenHandlers;
 import pl.viko.itemalchemyaddon.util.ModKeyBindings;
 
+/**
+ * Client-side entry point for the ItemAlchemyAddon mod.
+ *
+ * <p>Registers the Alchemical Table Mk2 screen, key bindings, and the
+ * global key-release listener that opens the EMC editing overlay on any
+ * {@link HandledScreen}.</p>
+ */
 public class ItemAlchemyAddonClient implements ClientModInitializer {
+
     @Override
     public void onInitializeClient() {
         HandledScreens.register(ModScreenHandlers.ALCHEMICAL_TABLE_MK2_SCREEN_HANDLER, AlchemicalTableMk2Screen::new);
@@ -23,9 +30,18 @@ public class ItemAlchemyAddonClient implements ClientModInitializer {
         registerKeyEvents();
     }
 
+    /**
+     * Registers a global key-release listener on every {@link HandledScreen}.
+     *
+     * <p>When the configured "Edit EMC" key is released while hovering over an
+     * item, the {@link EmcEditScreen} is opened for that item.  Inside the
+     * Alchemical Table Mk2 screen the hovered item is first looked up from the
+     * virtual transmutation list; in all other screens it falls back to the
+     * standard slot-based lookup via the {@link HandledScreenAccessor} mixin.</p>
+     */
     private void registerKeyEvents() {
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
-            if (screen instanceof HandledScreen) {
+            if (screen instanceof HandledScreen<?>) {
                 ScreenKeyboardEvents.beforeKeyRelease(screen).register((theScreen, key, scancode, mods) -> {
                     if (ModKeyBindings.editEmcKey.matchesKey(key, scancode)) {
                         HandledScreen<?> handledScreen = (HandledScreen<?>) theScreen;
@@ -34,28 +50,23 @@ public class ItemAlchemyAddonClient implements ClientModInitializer {
 
                         ItemStack stackToEdit = null;
 
-                        // --- NOWA LOGIKA ---
-                        // Jeśli to nasze specjalne GUI...
-                        if (handledScreen instanceof AlchemicalTableMk2Screen) {
-                            // ...używamy naszej nowej metody "szpiegującej"
-                            stackToEdit = ((AlchemicalTableMk2Screen) handledScreen).getHoveredStackFromList(mouseX, mouseY);
+                        if (handledScreen instanceof AlchemicalTableMk2Screen mk2Screen) {
+                            // Try the virtual item list first
+                            stackToEdit = mk2Screen.getHoveredStackFromList(mouseX, mouseY);
                             if (stackToEdit == null) {
                                 Slot hoveredSlot = ((HandledScreenAccessor) handledScreen).invokeGetSlotAt(mouseX, mouseY);
                                 if (hoveredSlot != null && hoveredSlot.hasStack()) {
                                     stackToEdit = hoveredSlot.getStack();
                                 }
                             }
-                        }
-                        // W każdym innym przypadku (skrzynia, ekwipunek gracza, etc.)...
-                        else {
-                            // ...używamy starej metody opartej na slotach
+                        } else {
+                            // Standard slot-based lookup for any other screen
                             Slot hoveredSlot = ((HandledScreenAccessor) handledScreen).invokeGetSlotAt(mouseX, mouseY);
                             if (hoveredSlot != null && hoveredSlot.hasStack()) {
                                 stackToEdit = hoveredSlot.getStack();
                             }
                         }
 
-                        // Jeśli znaleziono przedmiot w jakikolwiek sposób, otwieramy ekran edycji
                         if (stackToEdit != null) {
                             client.setScreen(new EmcEditScreen(screen, stackToEdit));
                         }
