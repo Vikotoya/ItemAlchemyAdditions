@@ -104,7 +104,7 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
     private static final int BUTTON_HEIGHT = 20;
 
     /** Number of item columns in the transmutation grid. */
-    private static final int ROW_COUNT = 10;
+    private static final int ROW_COUNT = 9;
 
     // ── Fields ───────────────────────────────────────────────────────────
 
@@ -128,8 +128,8 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
 
     public AlchemicalTableMk2Screen(AlchemicalTableMk2ScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
-        this.backgroundWidth = 284;
-        this.backgroundHeight = 276;
+        this.backgroundWidth = 216;
+        this.backgroundHeight = 252;
     }
 
     // ── Lifecycle ────────────────────────────────────────────────────────
@@ -137,10 +137,10 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
     @Override
     protected void init() {
         super.init();
-        this.listX = this.x + 80;
-        this.listY = this.y + 36;
-        this.listWidth = 180;
-        this.listHeight = 124;
+        this.listX = this.x + 30;
+        this.listY = this.y + 33;
+        this.listWidth = 162;
+        this.listHeight = 106;
 
         this.filterButtonX = this.x + FILTER_BUTTON_X_OFFSET;
         this.filterButtonY = this.y + FILTER_BUTTON_Y_OFFSET;
@@ -261,7 +261,7 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
     protected void drawForeground(DrawContext context, int mouseX, int mouseY) {
         long currentEmc = EMCManager.getEmcFromPlayer(new Player(this.client.player));
         String emcText = NumberFormat.getNumberInstance(Locale.US).format(currentEmc);
-        context.drawText(this.textRenderer, "EMC: " + emcText, 8, 167, 0x404040, false);
+        context.drawText(this.textRenderer, "EMC: " + emcText, 8, 144, 0x404040, false);
     }
 
     @Override

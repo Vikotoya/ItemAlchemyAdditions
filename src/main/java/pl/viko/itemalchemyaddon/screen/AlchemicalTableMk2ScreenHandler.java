@@ -73,26 +73,19 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
         this.player = playerInventory.player;
         inventory.onOpen(playerInventory.player);
 
-        // Buffer slots — 3 columns × 6 rows
-        for (int row = 0; row < 6; ++row) {
-            for (int col = 0; col < 3; ++col) {
-                this.addSlot(new Slot(inventory, col + row * 3, 8 + col * 18, 36 + row * 18));
-            }
-        }
-
         // Burning / processing slot
         this.addSlot(new Slot(inventory, 18, 26, 144));
 
         // Player main inventory (3×9)
         for (int row = 0; row < 3; ++row) {
             for (int col = 0; col < 9; ++col) {
-                this.addSlot(new Slot(playerInventory, col + row * 9 + 9, 62 + col * 18, 194 + row * 18));
+                this.addSlot(new Slot(playerInventory, col + row * 9 + 9, 30 + col * 18, 170 + row * 18));
             }
         }
 
         // Player hotbar (1×9)
         for (int col = 0; col < 9; ++col) {
-            this.addSlot(new Slot(playerInventory, col, 62 + col * 18, 252));
+            this.addSlot(new Slot(playerInventory, col, 30 + col * 18, 228));
         }
     }
 
