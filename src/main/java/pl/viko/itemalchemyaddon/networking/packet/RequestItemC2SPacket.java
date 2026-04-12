@@ -9,6 +9,8 @@ import net.minecraft.server.network.ServerPlayNetworkHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.mcpitanlib.api.entity.Player;
+import pl.viko.itemalchemyaddon.screen.AlchemicalTableMk2ScreenHandler;
+import pl.viko.itemalchemyaddon.screen.AlchemicalTableMk2ScreenHandler.GuiMode;
 
 /**
  * Handles the client-to-server "request item" packet sent when the player
@@ -18,25 +20,18 @@ import net.pitan76.mcpitanlib.api.entity.Player;
  * by an {@code int} click-type code that determines the quantity and
  * destination:</p>
  * <ul>
- *   <li>{@code 0} — Left click (no shift): place a single item on the cursor</li>
- *   <li>{@code 1} — Right click (no shift): place a single item in the inventory</li>
- *   <li>{@code 2} — Shift + Left click: place a full stack on the cursor</li>
- *   <li>{@code 3} — Shift + Right click: place a full stack in the inventory</li>
+ *   <li>{@code 0} — Left click (no shift): single item to cursor</li>
+ *   <li>{@code 1} — Right click (no shift): single item to inventory</li>
+ *   <li>{@code 2} — Shift + Left click: full stack to cursor</li>
+ *   <li>{@code 3} — Shift + Right click: full stack to inventory</li>
  * </ul>
  *
- * <p>EMC is deducted from the player's balance before any items are granted.
- * After processing, EMC is synced back to the client.</p>
+ * <p>Buying is only allowed when the handler is in {@link GuiMode#BURNING}.</p>
  */
 public class RequestItemC2SPacket {
 
     /**
      * Server-side receiver for the item-request packet.
-     *
-     * @param server         the Minecraft server instance
-     * @param player         the player who sent the packet
-     * @param handler        the player's network handler
-     * @param buf            the packet data buffer
-     * @param responseSender the response sender (unused)
      */
     public static void receive(MinecraftServer server, ServerPlayerEntity player, ServerPlayNetworkHandler handler,
                                PacketByteBuf buf, PacketSender responseSender) {
@@ -45,6 +40,12 @@ public class RequestItemC2SPacket {
         int clickType = buf.readInt();
 
         server.execute(() -> {
+            // Block buying when not in BURNING mode
+            if (player.currentScreenHandler instanceof AlchemicalTableMk2ScreenHandler sh
+                    && sh.getMode() != GuiMode.BURNING) {
+                return;
+            }
+
             Item requestedItem = requestedStack.getItem();
             long emcCost = EMCManager.get(requestedItem);
             if (emcCost <= 0) return;

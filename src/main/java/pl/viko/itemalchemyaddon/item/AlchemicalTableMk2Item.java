@@ -17,9 +17,9 @@ import pl.viko.itemalchemyaddon.screen.AlchemicalTableMk2ScreenHandler;
  * A portable alchemical table item that opens the Mk2 transmutation UI
  * when used (right-clicked).
  *
- * <p>The item itself acts as a {@link NamedScreenHandlerFactory}, storing a
- * 21-slot {@link ItemInventory} inside its NBT so the buffer contents persist
- * between sessions.</p>
+ * <p>The item itself acts as a {@link NamedScreenHandlerFactory}.  The screen
+ * handler has no backing inventory — the burn zone is virtual and items are
+ * converted to EMC immediately on interaction.</p>
  */
 public class AlchemicalTableMk2Item extends Item implements NamedScreenHandlerFactory {
 
@@ -43,8 +43,6 @@ public class AlchemicalTableMk2Item extends Item implements NamedScreenHandlerFa
     @Nullable
     @Override
     public ScreenHandler createMenu(int syncId, PlayerInventory playerInventory, PlayerEntity playerEntity) {
-        return new AlchemicalTableMk2ScreenHandler(
-                syncId, playerInventory,
-                new ItemInventory(playerEntity.getMainHandStack(), 21));
+        return new AlchemicalTableMk2ScreenHandler(syncId, playerInventory);
     }
 }

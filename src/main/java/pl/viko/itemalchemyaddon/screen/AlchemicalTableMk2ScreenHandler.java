@@ -2,11 +2,13 @@ package pl.viko.itemalchemyaddon.screen;
 
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.inventory.Inventory;
-import net.minecraft.inventory.SimpleInventory;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.screen.ArrayPropertyDelegate;
+import net.minecraft.screen.PropertyDelegate;
 import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
+import net.minecraft.screen.slot.SlotActionType;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.itemalchemy.data.ModState;
 import net.pitan76.itemalchemy.data.ServerState;
@@ -19,64 +21,66 @@ import java.util.Optional;
 /**
  * Server-side screen handler for the Alchemical Table Mk2.
  *
- * <p>Layout (19 custom slots total):</p>
- * <ul>
- *   <li>Slots 0–17: 3×6 item buffer grid (left side of the GUI)</li>
- *   <li>Slot 18: the burning/processing slot</li>
- * </ul>
+ * <p>There are <b>no custom inventory slots</b> — the burn zone is a virtual
+ * icon handled entirely through {@link #onButtonClick} and
+ * {@link #onSlotClick}.  Only the standard 36 player-inventory slots are
+ * registered.</p>
  *
- * <p>The {@link #tick()} method is called every server tick (from the main
- * mod initializer) for every player who has this screen open.  It implements
- * the automatic burning loop:</p>
- * <ol>
- *   <li>If the burning slot contains an item with an EMC value, that item is
- *       consumed one at a time: its EMC is added to the player's balance,
- *       and the item is registered to the team if not already known.</li>
- *   <li>When the burning slot is empty, the buffer slot containing the item
- *       with the <em>lowest</em> positive EMC value is moved into the burning
- *       slot.</li>
- * </ol>
+ * <p>Supports two modes synchronised via a {@link PropertyDelegate}:</p>
+ * <ul>
+ *   <li><b>BURNING</b> — items can be burned (from cursor on the burn zone,
+ *       or shift-clicked from the player inventory) and purchased from the
+ *       transmutation list.</li>
+ *   <li><b>UNLEARNING</b> — all inventory interactions are blocked.
+ *       The client selects items to unlearn and sends an
+ *       {@link pl.viko.itemalchemyaddon.networking.packet.UnlearnItemsC2SPacket}.</li>
+ * </ul>
  */
 public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
 
-    /** Total number of custom (non-player) inventory slots. */
-    private static final int INVENTORY_SIZE = 19;
+    /** The two operational modes of the GUI. */
+    public enum GuiMode { BURNING, UNLEARNING }
 
-    /** Number of buffer slots (indices 0 through 17). */
-    private static final int BUFFER_SLOT_COUNT = 18;
+    // ── Property delegate indices ────────────────────────────────────────
 
-    /** Index of the burning / processing slot. */
-    private static final int BURNING_SLOT_INDEX = 18;
+    private static final int PROPERTY_MODE = 0;
+    private static final int PROPERTY_LEARN_ENABLED = 1;
+    private static final int PROPERTY_COUNT = 2;
 
-    private final Inventory inventory;
+    // ── Button IDs for onButtonClick ─────────────────────────────────────
+
+    /** Toggle the learn-on-burn flag. */
+    public static final int BUTTON_TOGGLE_LEARN = 0;
+    /** Toggle between BURNING and UNLEARNING mode. */
+    public static final int BUTTON_TOGGLE_MODE = 1;
+    /** Exit UNLEARNING mode without applying changes. */
+    public static final int BUTTON_DENY_UNLEARN = 2;
+    /** Burn the entire cursor stack (virtual burn zone, left click). */
+    public static final int BUTTON_BURN_ALL = 3;
+    /** Burn a single item from the cursor stack (virtual burn zone, right click). */
+    public static final int BUTTON_BURN_ONE = 4;
+
+    // ── Fields ───────────────────────────────────────────────────────────
+
     private final PlayerEntity player;
+    private final PropertyDelegate propertyDelegate;
+
+    // ── Constructor ──────────────────────────────────────────────────────
 
     /**
-     * Client-side constructor used by the screen handler registry.
-     * Creates a dummy {@link SimpleInventory} as a placeholder.
+     * Single constructor used by both client (factory) and server (createMenu).
+     * No custom inventory is needed — the burn zone is purely virtual.
      */
     public AlchemicalTableMk2ScreenHandler(int syncId, PlayerInventory playerInventory) {
-        this(syncId, playerInventory, new SimpleInventory(INVENTORY_SIZE));
-    }
-
-    /**
-     * Server-side constructor receiving the real (item-backed) inventory.
-     *
-     * @param syncId          the synchronisation ID assigned by the server
-     * @param playerInventory the player's inventory
-     * @param inventory       the 19-slot custom inventory (buffer + burning)
-     */
-    public AlchemicalTableMk2ScreenHandler(int syncId, PlayerInventory playerInventory, Inventory inventory) {
         super(ModScreenHandlers.ALCHEMICAL_TABLE_MK2_SCREEN_HANDLER, syncId);
-        checkSize(inventory, INVENTORY_SIZE);
-        this.inventory = inventory;
         this.player = playerInventory.player;
-        inventory.onOpen(playerInventory.player);
+        this.propertyDelegate = new ArrayPropertyDelegate(PROPERTY_COUNT);
+        this.addProperties(this.propertyDelegate);
 
-        // Burning / processing slot
-        this.addSlot(new Slot(inventory, 18, 26, 144));
+        // Learn is ON by default
+        propertyDelegate.set(PROPERTY_LEARN_ENABLED, 1);
 
-        // Player main inventory (3×9)
+        // Player main inventory (3×9) — positions match the 216×252 texture
         for (int row = 0; row < 3; ++row) {
             for (int col = 0; col < 9; ++col) {
                 this.addSlot(new Slot(playerInventory, col + row * 9 + 9, 30 + col * 18, 170 + row * 18));
@@ -89,102 +93,144 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
         }
     }
 
+    // ── Property accessors ───────────────────────────────────────────────
+
+    /** Returns the current GUI mode, synchronised via PropertyDelegate. */
+    public GuiMode getMode() {
+        return propertyDelegate.get(PROPERTY_MODE) == 0 ? GuiMode.BURNING : GuiMode.UNLEARNING;
+    }
+
+    /** Returns whether the learn-on-burn toggle is enabled. */
+    public boolean isLearnEnabled() {
+        return propertyDelegate.get(PROPERTY_LEARN_ENABLED) != 0;
+    }
+
+    /** Sets the GUI mode (server-side). Propagates to the client automatically. */
+    public void setMode(GuiMode mode) {
+        propertyDelegate.set(PROPERTY_MODE, mode == GuiMode.BURNING ? 0 : 1);
+    }
+
+    // ── Slot interaction ─────────────────────────────────────────────────
+
     /**
-     * Called every server tick to process the burning logic.
+     * Intercepts slot clicks to implement burning and mode-gating.
      *
-     * <p>If the burning slot has a stack with a positive EMC value, one item is
-     * consumed per tick: EMC is credited and the item is registered to the
-     * player's team.  Otherwise, the buffer slot with the lowest EMC value is
-     * moved into the burning slot.</p>
+     * <ul>
+     *   <li>In UNLEARNING mode, <em>all</em> slot interactions are blocked.</li>
+     *   <li>In BURNING mode, shift + left click burns the <b>entire stack</b>;
+     *       shift + right click burns <b>one item</b>.  Items without EMC
+     *       are ignored entirely.</li>
+     * </ul>
      */
-    public void tick() {
-        if (player.getWorld().isClient()) return;
-
-        Player mcpPlayer = new Player(this.player);
-        Slot burningSlot = this.slots.get(BURNING_SLOT_INDEX);
-
-        if (burningSlot.hasStack()) {
-            ItemStack stackToBurn = burningSlot.getStack();
-            long emcValue = EMCManager.get(stackToBurn.getItem());
-
-            if (emcValue > 0) {
-                EMCManager.incrementEmc(mcpPlayer, emcValue);
-
-                Optional<TeamState> teamState = ModState.getModState(player.getServer()).getTeamByPlayer(player.getUuid());
-                if (teamState.isPresent()) {
-                    String itemId = ItemUtil.toId(stackToBurn.getItem()).toString();
-                    if (!teamState.get().registeredItems.contains(itemId)) {
-                        teamState.get().registeredItems.add(itemId);
-                        ServerState.of(player.getServer()).callMarkDirty();
-                    }
-                }
-
-                stackToBurn.decrement(1);
-                burningSlot.markDirty();
-                EMCManager.syncS2C(mcpPlayer);
-            }
-        } else {
-            // Find the buffer slot with the lowest positive EMC value
-            int minEmcSlotIndex = -1;
-            long minEmcValue = Long.MAX_VALUE;
-
-            for (int i = 0; i < BUFFER_SLOT_COUNT; i++) {
-                Slot bufferSlot = this.slots.get(i);
-                if (bufferSlot.hasStack()) {
-                    long currentEmc = EMCManager.get(bufferSlot.getStack().getItem());
-                    if (currentEmc > 0 && currentEmc < minEmcValue) {
-                        minEmcValue = currentEmc;
-                        minEmcSlotIndex = i;
-                    }
-                }
-            }
-
-            if (minEmcSlotIndex != -1) {
-                Slot fromSlot = this.slots.get(minEmcSlotIndex);
-                burningSlot.setStack(fromSlot.getStack());
-                fromSlot.setStack(ItemStack.EMPTY);
-                fromSlot.markDirty();
-                burningSlot.markDirty();
-            }
+    @Override
+    public void onSlotClick(int slotIndex, int button, SlotActionType actionType, PlayerEntity player) {
+        if (getMode() == GuiMode.UNLEARNING) {
+            return;
         }
+
+        if (actionType == SlotActionType.QUICK_MOVE && slotIndex >= 0 && slotIndex < this.slots.size()) {
+            Slot slot = this.slots.get(slotIndex);
+            if (slot != null && slot.hasStack()) {
+                ItemStack stack = slot.getStack();
+                long emcValue = EMCManager.get(stack.getItem());
+                if (emcValue > 0) {
+                    int burnCount = (button == 0) ? stack.getCount() : 1;
+                    burnItems(stack.getItem(), burnCount, emcValue);
+                    stack.decrement(burnCount);
+                    if (stack.isEmpty()) {
+                        slot.setStack(ItemStack.EMPTY);
+                    }
+                    slot.markDirty();
+                }
+            }
+            return;
+        }
+
+        super.onSlotClick(slotIndex, button, actionType, player);
+    }
+
+    @Override
+    public boolean onButtonClick(PlayerEntity player, int id) {
+        switch (id) {
+            case BUTTON_TOGGLE_LEARN -> {
+                int current = propertyDelegate.get(PROPERTY_LEARN_ENABLED);
+                propertyDelegate.set(PROPERTY_LEARN_ENABLED, current == 0 ? 1 : 0);
+            }
+            case BUTTON_TOGGLE_MODE -> {
+                if (getMode() == GuiMode.BURNING) {
+                    setMode(GuiMode.UNLEARNING);
+                } else {
+                    setMode(GuiMode.BURNING);
+                }
+            }
+            case BUTTON_DENY_UNLEARN -> setMode(GuiMode.BURNING);
+            case BUTTON_BURN_ALL -> burnCursorStack(false);
+            case BUTTON_BURN_ONE -> burnCursorStack(true);
+            default -> { return false; }
+        }
+        return true;
     }
 
     @Override
     public boolean canUse(PlayerEntity player) {
-        return this.inventory.canPlayerUse(player);
+        return true;
     }
 
     /**
-     * Handles shift-clicking items between the custom inventory and the player
-     * inventory.
-     *
-     * <p>Items shift-clicked out of the custom slots (0–18) are moved into the
-     * player inventory.  Items shift-clicked from the player inventory are
-     * moved into the buffer slots only (0–17), never directly into the
-     * burning slot.</p>
+     * All shift-click actions are handled by {@link #onSlotClick}.
+     * This method returns EMPTY to satisfy the contract and prevent loops.
      */
     @Override
     public ItemStack quickMove(PlayerEntity player, int index) {
-        ItemStack itemStack = ItemStack.EMPTY;
-        Slot slot = this.slots.get(index);
-        if (slot != null && slot.hasStack()) {
-            ItemStack slotStack = slot.getStack();
-            itemStack = slotStack.copy();
-            if (index < INVENTORY_SIZE) {
-                if (!this.insertItem(slotStack, INVENTORY_SIZE, this.slots.size(), true)) {
-                    return ItemStack.EMPTY;
-                }
-            } else if (!this.insertItem(slotStack, 0, BUFFER_SLOT_COUNT, false)) {
-                return ItemStack.EMPTY;
-            }
+        return ItemStack.EMPTY;
+    }
 
-            if (slotStack.isEmpty()) {
-                slot.setStack(ItemStack.EMPTY);
-            } else {
-                slot.markDirty();
+    // ── Private helpers ──────────────────────────────────────────────────
+
+    /**
+     * Burns the item currently held on the player's cursor.
+     *
+     * @param singleOnly if {@code true}, only one item is burned;
+     *                   otherwise the entire stack is consumed
+     */
+    private void burnCursorStack(boolean singleOnly) {
+        if (getMode() != GuiMode.BURNING) return;
+
+        ItemStack cursor = getCursorStack();
+        if (cursor.isEmpty()) return;
+
+        long emcValue = EMCManager.get(cursor.getItem());
+        if (emcValue <= 0) return;
+
+        int burnCount = singleOnly ? 1 : cursor.getCount();
+        burnItems(cursor.getItem(), burnCount, emcValue);
+
+        cursor.decrement(burnCount);
+        if (cursor.isEmpty()) {
+            setCursorStack(ItemStack.EMPTY);
+        }
+    }
+
+    /**
+     * Converts {@code count} of the given item to EMC, optionally registering
+     * the item to the player's team when the learn toggle is enabled.
+     */
+    private void burnItems(Item item, int count, long emcPerItem) {
+        Player mcpPlayer = new Player(this.player);
+        EMCManager.incrementEmc(mcpPlayer, emcPerItem * count);
+
+        if (isLearnEnabled()) {
+            Optional<TeamState> teamState = ModState.getModState(player.getServer())
+                    .getTeamByPlayer(player.getUuid());
+            if (teamState.isPresent()) {
+                String itemId = ItemUtil.toId(item).toString();
+                if (!teamState.get().registeredItems.contains(itemId)) {
+                    teamState.get().registeredItems.add(itemId);
+                    ServerState.of(player.getServer()).callMarkDirty();
+                }
             }
         }
 
-        return itemStack;
+        EMCManager.syncS2C(mcpPlayer);
     }
 }
