@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
+import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.client.render.GameRenderer;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemGroup;
@@ -18,7 +19,6 @@ import net.minecraft.util.math.MathHelper;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.itemalchemy.ItemAlchemyClient;
 import net.pitan76.itemalchemy.data.TeamState;
-import net.pitan76.mcpitanlib.api.entity.Player;
 import net.pitan76.mcpitanlib.api.util.item.ItemUtil;
 import org.jetbrains.annotations.Nullable;
 import pl.viko.itemalchemyaddon.ItemAlchemyAddon;
@@ -33,11 +33,6 @@ import java.util.*;
  *
  * <p>Operates in two modes ({@link GuiMode#BURNING} and {@link GuiMode#UNLEARNING}),
  * synchronised from the server via the screen handler's property delegate.</p>
- *
- * <p>All interactive widgets are rendered as icon textures using
- * {@link DrawContext#drawTexture}. Filter and Sort buttons are available in
- * both modes. Mode-specific widgets (burn slot, learn toggle, confirm/deny)
- * are only rendered and clickable in their respective mode.</p>
  */
 public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2ScreenHandler> {
 
@@ -49,14 +44,16 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         UNKNOWN("filter_unknown"),
         EMC_NULL("filter_emc_null");
 
-        private final Identifier texture;
+        final Identifier texture;
+        final Identifier hoveredTexture;
 
-        FilterMode(String textureName) {
-            this.texture = new Identifier(ItemAlchemyAddon.MOD_ID, "textures/gui/widgets/" + textureName + ".png");
+        FilterMode(String name) {
+            this.texture = widgetTex(name);
+            this.hoveredTexture = widgetTex(name + "_hovered");
         }
 
-        public FilterMode next() {
-            return values()[(this.ordinal() + 1) % values().length];
+        FilterMode next() {
+            return values()[(ordinal() + 1) % values().length];
         }
     }
 
@@ -66,14 +63,16 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         EMC_DESC("sort_emc_desc"),
         EMC_ASC("sort_emc_asc");
 
-        private final Identifier texture;
+        final Identifier texture;
+        final Identifier hoveredTexture;
 
-        SortMode(String textureName) {
-            this.texture = new Identifier(ItemAlchemyAddon.MOD_ID, "textures/gui/widgets/" + textureName + ".png");
+        SortMode(String name) {
+            this.texture = widgetTex(name);
+            this.hoveredTexture = widgetTex(name + "_hovered");
         }
 
-        public SortMode next() {
-            return values()[(this.ordinal() + 1) % values().length];
+        SortMode next() {
+            return values()[(ordinal() + 1) % values().length];
         }
     }
 
@@ -81,15 +80,26 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
 
     private static final Identifier TEXTURE = new Identifier(ItemAlchemyAddon.MOD_ID,
             "textures/gui/alchemical_table_mk2_gui.png");
+
     private static final Identifier BURN_SLOT_TEX = widgetTex("burn_slot");
     private static final Identifier TOGGLE_UNLEARN_TEX = widgetTex("toggle_unlearn_mode");
+    private static final Identifier TOGGLE_UNLEARN_HOVER_TEX = widgetTex("toggle_unlearn_mode_hovered");
     private static final Identifier TOGGLE_LEARN_ON_TEX = widgetTex("toggle_learn_on");
     private static final Identifier TOGGLE_LEARN_OFF_TEX = widgetTex("toggle_learn_off");
     private static final Identifier TEXT_LEARN_ON_TEX = widgetTex("text_learn_on");
     private static final Identifier TEXT_LEARN_OFF_TEX = widgetTex("text_learn_off");
     private static final Identifier CONFIRM_TEX = widgetTex("confirm");
+    private static final Identifier CONFIRM_HOVER_TEX = widgetTex("confirm_hovered");
     private static final Identifier DENY_TEX = widgetTex("deny");
+    private static final Identifier DENY_HOVER_TEX = widgetTex("deny_hovered");
     private static final Identifier CROSS_ICON_TEX = widgetTex("cross_icon");
+
+    private static final Identifier TAB_ACTIVE_TEX = widgetTex("tab_active");
+    private static final Identifier TAB_INACTIVE_TEX = widgetTex("tab_inactive");
+    private static final Identifier TAB_SCROLL_LEFT_TEX = widgetTex("tab_scroll_left");
+    private static final Identifier TAB_SCROLL_LEFT_HOVER_TEX = widgetTex("tab_scroll_left_hovered");
+    private static final Identifier TAB_SCROLL_RIGHT_TEX = widgetTex("tab_scroll_right");
+    private static final Identifier TAB_SCROLL_RIGHT_HOVER_TEX = widgetTex("tab_scroll_right_hovered");
 
     private static Identifier widgetTex(String name) {
         return new Identifier(ItemAlchemyAddon.MOD_ID, "textures/gui/widgets/" + name + ".png");
@@ -112,6 +122,25 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
     private static final int CONFIRM_X = 8, CONFIRM_Y = 105;
     private static final int DENY_X = 8, DENY_Y = 123;
 
+    // ── Tab layout constants ─────────────────────────────────────────────
+
+    private static final int MAX_VISIBLE_TABS = 7;
+    private static final int[] TAB_X_OFFSETS = {14, 41, 68, 95, 122, 149, 176};
+    private static final int TAB_Y_OFFSET = -28;
+    private static final int TAB_W = 26, TAB_H = 31;
+    private static final int TAB_ICON_ACTIVE_DX = 5, TAB_ICON_ACTIVE_DY = 6;
+    private static final int TAB_ICON_INACTIVE_DX = 5, TAB_ICON_INACTIVE_DY = 8;
+
+    private static final int TAB_SCROLL_LEFT_X = 1, TAB_SCROLL_LEFT_Y = -23;
+    private static final int TAB_SCROLL_RIGHT_X = 204, TAB_SCROLL_RIGHT_Y = -23;
+    private static final int TAB_SCROLL_W = 11, TAB_SCROLL_H = 20;
+
+    // ── Search bar constants ─────────────────────────────────────────────
+
+    private static final int SEARCH_X = 42, SEARCH_Y = 18;
+    private static final int SEARCH_W = 188, SEARCH_H = 12;
+    private static final int SEARCH_MAX_LENGTH = 40;
+
     /** Number of item columns in the transmutation grid. */
     private static final int ROW_COUNT = 9;
 
@@ -124,19 +153,18 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
 
     private final List<ItemGroup> itemGroups = new ArrayList<>();
     private int selectedItemGroupIndex;
-    private float tabsScrollOffset;
-    private boolean isTabsDragging;
+    private int tabScrollIndex;
 
     private FilterMode currentFilterMode = FilterMode.KNOWN;
     private SortMode currentSortMode = SortMode.ID;
 
-    /** Item IDs selected for unlearning (client-side only). */
     private final Set<String> unlearnSelection = new LinkedHashSet<>();
     private boolean isDragSelecting;
-
-    // ── Cached learned-items list (rebuilt once per second) ──────────────
+    private GuiMode previousMode = GuiMode.BURNING;
 
     private List<String> cachedLearnedIds = new ArrayList<>();
+
+    private TextFieldWidget searchField;
 
     // ── Constructor ──────────────────────────────────────────────────────
 
@@ -157,9 +185,12 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         this.listHeight = 106;
 
         this.itemGroups.clear();
-        this.itemGroups.addAll(ItemGroups.getGroups());
+        for (ItemGroup group : ItemGroups.getGroups()) {
+            if (group.getType() != ItemGroup.Type.HOTBAR) {
+                this.itemGroups.add(group);
+            }
+        }
 
-        // Move the "Search" tab to the front so it acts as the default view
         ItemGroup searchGroup = null;
         for (ItemGroup group : this.itemGroups) {
             if (group.getType() == ItemGroup.Type.SEARCH) {
@@ -172,6 +203,18 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
             this.itemGroups.add(0, searchGroup);
         }
         this.selectedItemGroupIndex = 0;
+        this.tabScrollIndex = 0;
+
+        this.searchField = new TextFieldWidget(this.textRenderer,
+                this.x + SEARCH_X, this.y + SEARCH_Y, SEARCH_W, SEARCH_H, Text.empty());
+        this.searchField.setMaxLength(SEARCH_MAX_LENGTH);
+        this.searchField.setDrawsBackground(false);
+        this.searchField.setEditableColor(0xFFFFFF);
+        this.searchField.setChangedListener(text -> {
+            this.scrollOffset = 0;
+            updateItemsBasedOnTab();
+        });
+        this.addDrawableChild(this.searchField);
 
         refreshLearnedIds();
         updateItemsBasedOnTab();
@@ -252,6 +295,15 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
             }
         }
 
+        String searchText = (searchField != null) ? searchField.getText().toLowerCase(Locale.ROOT) : "";
+        if (!searchText.isEmpty()) {
+            filteredItems.removeIf(stack -> {
+                String name = stack.getName().getString().toLowerCase(Locale.ROOT);
+                String id = ItemUtil.toId(stack.getItem()).toString().toLowerCase(Locale.ROOT);
+                return !name.contains(searchText) && !id.contains(searchText);
+            });
+        }
+
         switch (currentSortMode) {
             case ABC -> filteredItems.sort(Comparator.comparing(s -> s.getName().getString()));
             case EMC_DESC -> filteredItems.sort(
@@ -268,7 +320,7 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
 
     @Override
     protected void drawForeground(DrawContext context, int mouseX, int mouseY) {
-        long currentEmc = EMCManager.getEmcFromPlayer(new Player(this.client.player));
+        long currentEmc = this.handler.getClientEmc();
         String emcText = NumberFormat.getNumberInstance(Locale.US).format(currentEmc);
         context.drawText(this.textRenderer, "EMC: " + emcText, 8, 144, 0x404040, false);
     }
@@ -279,23 +331,73 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         int guiX = (width - backgroundWidth) / 2;
         int guiY = (height - backgroundHeight) / 2;
+
+        // ── Inactive tabs (drawn before GUI so it covers their bottom edge) ──
+        for (int slot = 0; slot < MAX_VISIBLE_TABS && tabScrollIndex + slot < itemGroups.size(); slot++) {
+            int tabIndex = tabScrollIndex + slot;
+            if (tabIndex != selectedItemGroupIndex) {
+                context.drawTexture(TAB_INACTIVE_TEX,
+                        guiX + TAB_X_OFFSETS[slot], guiY + TAB_Y_OFFSET,
+                        0, 0, TAB_W, TAB_H, TAB_W, TAB_H);
+            }
+        }
+
+        // ── Main GUI texture ──
         context.drawTexture(TEXTURE, guiX, guiY, 0, 0, backgroundWidth, backgroundHeight,
                 backgroundWidth, backgroundHeight);
 
-        // ── Persistent widgets (both modes) ──
-        context.drawTexture(currentFilterMode.texture,
+        // ── Active tab (on top of GUI edge) ──
+        int activeSlot = selectedItemGroupIndex - tabScrollIndex;
+        if (activeSlot >= 0 && activeSlot < MAX_VISIBLE_TABS) {
+            context.drawTexture(TAB_ACTIVE_TEX,
+                    guiX + TAB_X_OFFSETS[activeSlot], guiY + TAB_Y_OFFSET,
+                    0, 0, TAB_W, TAB_H, TAB_W, TAB_H);
+        }
+
+        // ── Tab icons ──
+        for (int slot = 0; slot < MAX_VISIBLE_TABS && tabScrollIndex + slot < itemGroups.size(); slot++) {
+            int tabIndex = tabScrollIndex + slot;
+            boolean isActive = (tabIndex == selectedItemGroupIndex);
+            int tabPixelX = guiX + TAB_X_OFFSETS[slot];
+            int tabPixelY = guiY + TAB_Y_OFFSET;
+            int iconDx = isActive ? TAB_ICON_ACTIVE_DX : TAB_ICON_INACTIVE_DX;
+            int iconDy = isActive ? TAB_ICON_ACTIVE_DY : TAB_ICON_INACTIVE_DY;
+            context.drawItem(itemGroups.get(tabIndex).getIcon(), tabPixelX + iconDx, tabPixelY + iconDy);
+        }
+
+        // ── Tab scroll arrows ──
+        if (itemGroups.size() > MAX_VISIBLE_TABS) {
+            boolean leftHover = isInside(mouseX, mouseY,
+                    guiX + TAB_SCROLL_LEFT_X, guiY + TAB_SCROLL_LEFT_Y, TAB_SCROLL_W, TAB_SCROLL_H);
+            context.drawTexture(leftHover ? TAB_SCROLL_LEFT_HOVER_TEX : TAB_SCROLL_LEFT_TEX,
+                    guiX + TAB_SCROLL_LEFT_X, guiY + TAB_SCROLL_LEFT_Y,
+                    0, 0, TAB_SCROLL_W, TAB_SCROLL_H, TAB_SCROLL_W, TAB_SCROLL_H);
+
+            boolean rightHover = isInside(mouseX, mouseY,
+                    guiX + TAB_SCROLL_RIGHT_X, guiY + TAB_SCROLL_RIGHT_Y, TAB_SCROLL_W, TAB_SCROLL_H);
+            context.drawTexture(rightHover ? TAB_SCROLL_RIGHT_HOVER_TEX : TAB_SCROLL_RIGHT_TEX,
+                    guiX + TAB_SCROLL_RIGHT_X, guiY + TAB_SCROLL_RIGHT_Y,
+                    0, 0, TAB_SCROLL_W, TAB_SCROLL_H, TAB_SCROLL_W, TAB_SCROLL_H);
+        }
+
+        // ── Persistent widgets (both modes) with hover ──
+        boolean filterHover = isInside(mouseX, mouseY, guiX + FILTER_X, guiY + FILTER_Y, WIDGET_SIZE, WIDGET_SIZE);
+        context.drawTexture(filterHover ? currentFilterMode.hoveredTexture : currentFilterMode.texture,
                 guiX + FILTER_X, guiY + FILTER_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
-        context.drawTexture(currentSortMode.texture,
+
+        boolean sortHover = isInside(mouseX, mouseY, guiX + SORT_X, guiY + SORT_Y, WIDGET_SIZE, WIDGET_SIZE);
+        context.drawTexture(sortHover ? currentSortMode.hoveredTexture : currentSortMode.texture,
                 guiX + SORT_X, guiY + SORT_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
-        context.drawTexture(TOGGLE_UNLEARN_TEX,
+
+        boolean unlearnHover = isInside(mouseX, mouseY, guiX + UNLEARN_TOGGLE_X, guiY + UNLEARN_TOGGLE_Y, WIDGET_SIZE, WIDGET_SIZE);
+        context.drawTexture(unlearnHover ? TOGGLE_UNLEARN_HOVER_TEX : TOGGLE_UNLEARN_TEX,
                 guiX + UNLEARN_TOGGLE_X, guiY + UNLEARN_TOGGLE_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
 
+        // ── Mode-specific widgets ──
         if (getMode() == GuiMode.BURNING) {
-            // Burn slot background
             context.drawTexture(BURN_SLOT_TEX,
                     guiX + BURN_SLOT_X, guiY + BURN_SLOT_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
 
-            // Learn toggle + label
             Identifier learnTex = this.handler.isLearnEnabled() ? TOGGLE_LEARN_ON_TEX : TOGGLE_LEARN_OFF_TEX;
             context.drawTexture(learnTex,
                     guiX + LEARN_TOGGLE_X, guiY + LEARN_TOGGLE_Y, 0, 0,
@@ -306,76 +408,36 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
                     guiX + LEARN_TEXT_X, guiY + LEARN_TEXT_Y, 0, 0,
                     LEARN_TEXT_W, LEARN_TEXT_H, LEARN_TEXT_W, LEARN_TEXT_H);
         } else {
-            // Unlearning mode widgets
-            context.drawTexture(CONFIRM_TEX,
+            boolean confirmHover = isInside(mouseX, mouseY, guiX + CONFIRM_X, guiY + CONFIRM_Y, WIDGET_SIZE, WIDGET_SIZE);
+            context.drawTexture(confirmHover ? CONFIRM_HOVER_TEX : CONFIRM_TEX,
                     guiX + CONFIRM_X, guiY + CONFIRM_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
-            context.drawTexture(DENY_TEX,
+
+            boolean denyHover = isInside(mouseX, mouseY, guiX + DENY_X, guiY + DENY_Y, WIDGET_SIZE, WIDGET_SIZE);
+            context.drawTexture(denyHover ? DENY_HOVER_TEX : DENY_TEX,
                     guiX + DENY_X, guiY + DENY_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
         }
     }
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Detect mode transitions for cleanup
+        GuiMode currentMode = getMode();
+        if (currentMode != previousMode) {
+            if (previousMode == GuiMode.UNLEARNING) {
+                unlearnSelection.clear();
+                refreshLearnedIds();
+                updateItemsBasedOnTab();
+            }
+            previousMode = currentMode;
+        }
 
-        // Periodically refresh learned-items cache and item list (~every second)
+        // Periodically refresh learned-items cache (~every second)
         if (this.client != null && this.client.player != null && this.client.player.age % 20 == 0) {
             refreshLearnedIds();
             updateItemsBasedOnTab();
         }
 
-        // ── Tabs (Part 1: inactive tabs drawn behind the GUI) ──
-        int tabX = this.x + 8;
-        int tabY = this.y - 26;
-        int tabWidth = 26;
-        int tabHeight = 32;
-        int tabMargin = 2;
-
-        for (int i = 0; i < this.itemGroups.size(); i++) {
-            if (i != this.selectedItemGroupIndex) {
-                int currentTabX = tabX + i * (tabWidth + tabMargin) - (int) this.tabsScrollOffset;
-                if (currentTabX < this.x + this.backgroundWidth - 8 && currentTabX > this.x + 8 - tabWidth) {
-                    context.drawTexture(new Identifier("minecraft",
-                                    "textures/gui/container/creative_inventory/tabs.png"),
-                            currentTabX, tabY, 0, 0, tabWidth, tabHeight, 256, 256);
-                }
-            }
-        }
-
-        // Main background + slot layer
         super.render(context, mouseX, mouseY, delta);
-
-        // ── Tabs (Part 2: active tab + icons, drawn on top) ──
-        context.enableScissor(this.x, 0, this.x + this.backgroundWidth, this.y + this.backgroundHeight);
-
-        for (int i = 0; i < this.itemGroups.size(); i++) {
-            int currentTabX = tabX + i * (tabWidth + tabMargin) - (int) this.tabsScrollOffset;
-            int currentTabY = tabY;
-
-            if (currentTabX < this.x + this.backgroundWidth - 8 && currentTabX > this.x + 8 - tabWidth) {
-                if (i == this.selectedItemGroupIndex) {
-                    currentTabY -= 2;
-                    context.drawTexture(new Identifier("minecraft",
-                                    "textures/gui/container/creative_inventory/tabs.png"),
-                            currentTabX, currentTabY, 0, 32, tabWidth, tabHeight, 256, 256);
-                }
-                context.drawItem(this.itemGroups.get(i).getIcon(), currentTabX + 5, currentTabY + 8);
-            }
-        }
-
-        context.disableScissor();
-
-        // ── Tab scrollbar ──
-        int tabsScrollbarX = this.x + 8;
-        int tabsScrollbarY = this.y + 4;
-        int tabsScrollbarWidth = this.backgroundWidth - 16;
-        int totalTabsWidth = this.itemGroups.size() * (tabWidth + tabMargin) - tabMargin;
-        int maxTabsScroll = Math.max(0, totalTabsWidth - tabsScrollbarWidth);
-        if (maxTabsScroll > 0) {
-            int handleWidth = (int) ((float) tabsScrollbarWidth / totalTabsWidth * tabsScrollbarWidth);
-            handleWidth = MathHelper.clamp(handleWidth, 8, tabsScrollbarWidth);
-            int handleX = tabsScrollbarX + (int) (this.tabsScrollOffset / maxTabsScroll * (tabsScrollbarWidth - handleWidth));
-            context.fill(handleX, tabsScrollbarY, handleX + handleWidth, tabsScrollbarY + 2, 0xFFC0C0C0);
-        }
 
         // ── Item grid ──
         ItemStack hoveredStack = null;
@@ -392,7 +454,6 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
 
                 context.drawItem(stack, itemX, itemY);
 
-                // Visual overlays based on filter mode
                 if (currentFilterMode == FilterMode.ALL && !hasEmc) {
                     context.fill(itemX, itemY, itemX + 16, itemY + 16, 0x40FF0000);
                 }
@@ -400,13 +461,15 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
                     context.fill(itemX, itemY, itemX + 16, itemY + 16, 0x80101010);
                 }
 
-                // Unlearning selection cross
+                // Cross icon for unlearning selection — z-pushed above items
                 if (getMode() == GuiMode.UNLEARNING && unlearnSelection.contains(itemId)) {
+                    context.getMatrices().push();
+                    context.getMatrices().translate(0, 0, 200);
                     context.drawTexture(CROSS_ICON_TEX,
                             itemX - 1, itemY - 1, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
+                    context.getMatrices().pop();
                 }
 
-                // Hover highlight
                 if (mouseX >= itemX && mouseX < itemX + 16 && mouseY >= itemY && mouseY < itemY + 16) {
                     context.fill(itemX, itemY, itemX + 16, itemY + 16, 0x80FFFFFF);
                     hoveredStack = stack;
@@ -438,20 +501,39 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
     // ── Input handling ───────────────────────────────────────────────────
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
-        int tabY = this.y - 26;
-        int tabHeight = 32;
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (searchField != null && searchField.isFocused()) {
+            if (keyCode == 256) { // GLFW_KEY_ESCAPE
+                searchField.setFocused(false);
+                return true;
+            }
+            searchField.keyPressed(keyCode, scanCode, modifiers);
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
 
-        if (mouseY >= tabY && mouseY < tabY + tabHeight) {
-            int tabsScrollbarWidth = this.backgroundWidth - 16;
-            int tabWidthWithMargin = 26 + 2;
-            int totalTabsWidth = this.itemGroups.size() * tabWidthWithMargin - 12;
-            int maxTabsScroll = Math.max(0, totalTabsWidth - tabsScrollbarWidth);
-            this.tabsScrollOffset = (float) MathHelper.clamp(
-                    this.tabsScrollOffset - amount * tabWidthWithMargin, 0, maxTabsScroll);
+    @Override
+    public boolean charTyped(char chr, int modifiers) {
+        if (searchField != null && searchField.isFocused()) {
+            return searchField.charTyped(chr, modifiers);
+        }
+        return super.charTyped(chr, modifiers);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+        // Tab area scrolling (integer steps)
+        if (mouseY >= this.y + TAB_Y_OFFSET && mouseY < this.y + TAB_Y_OFFSET + TAB_H) {
+            int maxTabScroll = Math.max(0, itemGroups.size() - MAX_VISIBLE_TABS);
+            if (maxTabScroll > 0) {
+                tabScrollIndex += (amount > 0) ? -1 : 1;
+                tabScrollIndex = MathHelper.clamp(tabScrollIndex, 0, maxTabScroll);
+            }
             return true;
         }
 
+        // Item list scrolling
         int maxScroll = Math.max(0, (itemsToShow.size() + ROW_COUNT - 1) / ROW_COUNT * 18 - listHeight);
         this.scrollOffset = (float) MathHelper.clamp(this.scrollOffset - amount * 10, 0, maxScroll);
         return true;
@@ -462,26 +544,55 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         int guiX = this.x;
         int guiY = this.y;
 
+        // ── Tab scroll arrows ──
+        if (itemGroups.size() > MAX_VISIBLE_TABS) {
+            if (isInside(mouseX, mouseY, guiX + TAB_SCROLL_LEFT_X, guiY + TAB_SCROLL_LEFT_Y, TAB_SCROLL_W, TAB_SCROLL_H)) {
+                if (tabScrollIndex > 0) {
+                    tabScrollIndex--;
+                }
+                return true;
+            }
+            if (isInside(mouseX, mouseY, guiX + TAB_SCROLL_RIGHT_X, guiY + TAB_SCROLL_RIGHT_Y, TAB_SCROLL_W, TAB_SCROLL_H)) {
+                int maxTabScroll = Math.max(0, itemGroups.size() - MAX_VISIBLE_TABS);
+                if (tabScrollIndex < maxTabScroll) {
+                    tabScrollIndex++;
+                }
+                return true;
+            }
+        }
+
+        // ── Tab click ──
+        for (int slot = 0; slot < MAX_VISIBLE_TABS && tabScrollIndex + slot < itemGroups.size(); slot++) {
+            int tabPixelX = guiX + TAB_X_OFFSETS[slot];
+            int tabPixelY = guiY + TAB_Y_OFFSET;
+            if (isInside(mouseX, mouseY, tabPixelX, tabPixelY, TAB_W, TAB_H)) {
+                int newIndex = tabScrollIndex + slot;
+                if (newIndex != selectedItemGroupIndex) {
+                    this.selectedItemGroupIndex = newIndex;
+                    this.scrollOffset = 0;
+                    updateItemsBasedOnTab();
+                }
+                return true;
+            }
+        }
+
         // ── Persistent buttons (both modes) ──
 
-        // Filter button
         if (isInside(mouseX, mouseY, guiX + FILTER_X, guiY + FILTER_Y, WIDGET_SIZE, WIDGET_SIZE)) {
             this.currentFilterMode = this.currentFilterMode.next();
+            this.scrollOffset = 0;
             updateItemsBasedOnTab();
             return true;
         }
 
-        // Sort button
         if (isInside(mouseX, mouseY, guiX + SORT_X, guiY + SORT_Y, WIDGET_SIZE, WIDGET_SIZE)) {
             this.currentSortMode = this.currentSortMode.next();
             updateItemsBasedOnTab();
             return true;
         }
 
-        // Unlearn Mode Toggle
         if (isInside(mouseX, mouseY, guiX + UNLEARN_TOGGLE_X, guiY + UNLEARN_TOGGLE_Y, WIDGET_SIZE, WIDGET_SIZE)) {
             if (getMode() == GuiMode.UNLEARNING) {
-                // Acts as Deny when already in unlearning mode
                 unlearnSelection.clear();
             }
             assert this.client != null && this.client.interactionManager != null;
@@ -493,7 +604,6 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         // ── BURNING mode buttons ──
 
         if (getMode() == GuiMode.BURNING) {
-            // Virtual burn zone — burn the cursor stack on click
             if (isInside(mouseX, mouseY, guiX + BURN_SLOT_X, guiY + BURN_SLOT_Y, WIDGET_SIZE, WIDGET_SIZE)) {
                 if (!this.handler.getCursorStack().isEmpty()) {
                     assert this.client != null && this.client.interactionManager != null;
@@ -505,7 +615,6 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
                 }
             }
 
-            // Learn toggle
             if (isInside(mouseX, mouseY, guiX + LEARN_TOGGLE_X, guiY + LEARN_TOGGLE_Y,
                     LEARN_TOGGLE_W, LEARN_TOGGLE_H)) {
                 assert this.client != null && this.client.interactionManager != null;
@@ -518,14 +627,12 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         // ── UNLEARNING mode buttons ──
 
         if (getMode() == GuiMode.UNLEARNING) {
-            // Confirm
             if (isInside(mouseX, mouseY, guiX + CONFIRM_X, guiY + CONFIRM_Y, WIDGET_SIZE, WIDGET_SIZE)) {
                 sendUnlearnPacket();
                 unlearnSelection.clear();
                 return true;
             }
 
-            // Deny
             if (isInside(mouseX, mouseY, guiX + DENY_X, guiY + DENY_Y, WIDGET_SIZE, WIDGET_SIZE)) {
                 unlearnSelection.clear();
                 assert this.client != null && this.client.interactionManager != null;
@@ -542,32 +649,6 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
             return true;
         }
 
-        // ── Tab scrollbar drag ──
-        int tabsScrollbarX = this.x + 8;
-        int tabsScrollbarY = this.y + 4;
-        int tabsScrollbarWidth = this.backgroundWidth - 16;
-        if (mouseX >= tabsScrollbarX && mouseX < tabsScrollbarX + tabsScrollbarWidth
-                && mouseY >= tabsScrollbarY && mouseY < tabsScrollbarY + 2) {
-            this.isTabsDragging = true;
-            return true;
-        }
-
-        // ── Tab click ──
-        int tabX = this.x + 8;
-        int tabY = this.y - 26;
-        int tabWidth = 26;
-        int tabMargin = 2;
-        for (int i = 0; i < this.itemGroups.size(); i++) {
-            int currentTabX = tabX + i * (tabWidth + tabMargin) - (int) this.tabsScrollOffset;
-            int currentTabY = (i == this.selectedItemGroupIndex) ? tabY - 2 : tabY;
-            if (mouseX >= currentTabX && mouseX < currentTabX + tabWidth && mouseY >= currentTabY && mouseY < currentTabY + 32
-                    && currentTabX < this.x + this.backgroundWidth - 8 && currentTabX > this.x + 8 - tabWidth) {
-                this.selectedItemGroupIndex = i;
-                updateItemsBasedOnTab();
-                return true;
-            }
-        }
-
         // ── Item list click ──
         if (mouseX >= listX && mouseX < listX + listWidth && mouseY >= listY && mouseY < listY + listHeight) {
             int index = (int) ((mouseY - listY + scrollOffset) / 18) * ROW_COUNT + (int) ((mouseX - listX) / 18);
@@ -575,7 +656,6 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
                 ItemStack clickedStack = itemsToShow.get(index);
 
                 if (getMode() == GuiMode.UNLEARNING) {
-                    // Toggle selection
                     if (button == 0) {
                         String itemId = ItemUtil.toId(clickedStack.getItem()).toString();
                         if (!unlearnSelection.remove(itemId)) {
@@ -585,7 +665,11 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
                         return true;
                     }
                 } else {
-                    // BURNING mode — buy item
+                    String itemId = ItemUtil.toId(clickedStack.getItem()).toString();
+                    if (!cachedLearnedIds.contains(itemId)) {
+                        return true;
+                    }
+
                     boolean isShiftDown = hasShiftDown();
                     int clickType;
                     if (button == 0 && !isShiftDown)      clickType = 0;
@@ -608,7 +692,6 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
 
     @Override
     public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
-        // Drag-to-select in UNLEARNING mode
         if (isDragSelecting && getMode() == GuiMode.UNLEARNING) {
             ItemStack hoveredStack = getHoveredStackFromList(mouseX, mouseY);
             if (hoveredStack != null) {
@@ -626,18 +709,6 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
             return true;
         }
 
-        if (this.isTabsDragging) {
-            int tabsScrollbarWidth = this.backgroundWidth - 16;
-            int tabWidthWithMargin = 26 + 2;
-            int totalTabsWidth = this.itemGroups.size() * tabWidthWithMargin - 2;
-            int maxTabsScroll = Math.max(0, totalTabsWidth - tabsScrollbarWidth);
-            if (maxTabsScroll > 0) {
-                float scrollPercentage = (float) ((mouseX - (this.x + 8)) / tabsScrollbarWidth);
-                this.tabsScrollOffset = MathHelper.clamp(scrollPercentage * maxTabsScroll, 0, maxTabsScroll);
-            }
-            return true;
-        }
-
         return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
     }
 
@@ -645,7 +716,6 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
     public boolean mouseReleased(double mouseX, double mouseY, int button) {
         if (button == 0) {
             this.isDragging = false;
-            this.isTabsDragging = false;
             this.isDragSelecting = false;
         }
         return super.mouseReleased(mouseX, mouseY, button);

@@ -5,9 +5,11 @@ import net.minecraft.network.PacketByteBuf;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.network.ServerPlayNetworkHandler;
 import net.minecraft.server.network.ServerPlayerEntity;
+import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.itemalchemy.data.ModState;
 import net.pitan76.itemalchemy.data.ServerState;
 import net.pitan76.itemalchemy.data.TeamState;
+import net.pitan76.mcpitanlib.api.entity.Player;
 import pl.viko.itemalchemyaddon.screen.AlchemicalTableMk2ScreenHandler;
 import pl.viko.itemalchemyaddon.screen.AlchemicalTableMk2ScreenHandler.GuiMode;
 
@@ -19,18 +21,12 @@ import java.util.Optional;
  * Handles the client-to-server "unlearn items" packet sent when the player
  * confirms their unlearning selection in the Alchemical Table Mk2.
  *
- * <p>The packet payload is an {@code int} count followed by that many
- * {@link String} item IDs (e.g. {@code "minecraft:diamond"}).  Each ID is
- * removed from the player's team learned-item pool.</p>
- *
- * <p>After processing, the GUI mode is switched back to
- * {@link GuiMode#BURNING}.</p>
+ * <p>After removing the selected items from the team's learned pool, a full
+ * state sync is sent to the client so the GUI reflects the change
+ * immediately.</p>
  */
 public class UnlearnItemsC2SPacket {
 
-    /**
-     * Server-side receiver for the unlearn-items packet.
-     */
     public static void receive(MinecraftServer server, ServerPlayerEntity player,
                                ServerPlayNetworkHandler handler, PacketByteBuf buf,
                                PacketSender responseSender) {
@@ -57,6 +53,8 @@ public class UnlearnItemsC2SPacket {
             }
 
             screenHandler.setMode(GuiMode.BURNING);
+
+            EMCManager.syncS2C(new Player(player));
         });
     }
 }

@@ -26,15 +26,9 @@ import java.util.Optional;
  * {@link #onSlotClick}.  Only the standard 36 player-inventory slots are
  * registered.</p>
  *
- * <p>Supports two modes synchronised via a {@link PropertyDelegate}:</p>
- * <ul>
- *   <li><b>BURNING</b> — items can be burned (from cursor on the burn zone,
- *       or shift-clicked from the player inventory) and purchased from the
- *       transmutation list.</li>
- *   <li><b>UNLEARNING</b> — all inventory interactions are blocked.
- *       The client selects items to unlearn and sends an
- *       {@link pl.viko.itemalchemyaddon.networking.packet.UnlearnItemsC2SPacket}.</li>
- * </ul>
+ * <p>The player's current EMC balance is synchronised to the client every tick
+ * via a {@link PropertyDelegate} (split into two {@code int} properties to
+ * represent a full {@code long}).</p>
  */
 public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
 
@@ -45,19 +39,16 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
 
     private static final int PROPERTY_MODE = 0;
     private static final int PROPERTY_LEARN_ENABLED = 1;
-    private static final int PROPERTY_COUNT = 2;
+    private static final int PROPERTY_EMC_LOW = 2;
+    private static final int PROPERTY_EMC_HIGH = 3;
+    private static final int PROPERTY_COUNT = 4;
 
     // ── Button IDs for onButtonClick ─────────────────────────────────────
 
-    /** Toggle the learn-on-burn flag. */
     public static final int BUTTON_TOGGLE_LEARN = 0;
-    /** Toggle between BURNING and UNLEARNING mode. */
     public static final int BUTTON_TOGGLE_MODE = 1;
-    /** Exit UNLEARNING mode without applying changes. */
     public static final int BUTTON_DENY_UNLEARN = 2;
-    /** Burn the entire cursor stack (virtual burn zone, left click). */
     public static final int BUTTON_BURN_ALL = 3;
-    /** Burn a single item from the cursor stack (virtual burn zone, right click). */
     public static final int BUTTON_BURN_ONE = 4;
 
     // ── Fields ───────────────────────────────────────────────────────────
@@ -67,27 +58,19 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
 
     // ── Constructor ──────────────────────────────────────────────────────
 
-    /**
-     * Single constructor used by both client (factory) and server (createMenu).
-     * No custom inventory is needed — the burn zone is purely virtual.
-     */
     public AlchemicalTableMk2ScreenHandler(int syncId, PlayerInventory playerInventory) {
         super(ModScreenHandlers.ALCHEMICAL_TABLE_MK2_SCREEN_HANDLER, syncId);
         this.player = playerInventory.player;
         this.propertyDelegate = new ArrayPropertyDelegate(PROPERTY_COUNT);
         this.addProperties(this.propertyDelegate);
 
-        // Learn is ON by default
         propertyDelegate.set(PROPERTY_LEARN_ENABLED, 1);
 
-        // Player main inventory (3×9) — positions match the 216×252 texture
         for (int row = 0; row < 3; ++row) {
             for (int col = 0; col < 9; ++col) {
                 this.addSlot(new Slot(playerInventory, col + row * 9 + 9, 30 + col * 18, 170 + row * 18));
             }
         }
-
-        // Player hotbar (1×9)
         for (int col = 0; col < 9; ++col) {
             this.addSlot(new Slot(playerInventory, col, 30 + col * 18, 228));
         }
@@ -95,32 +78,50 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
 
     // ── Property accessors ───────────────────────────────────────────────
 
-    /** Returns the current GUI mode, synchronised via PropertyDelegate. */
     public GuiMode getMode() {
         return propertyDelegate.get(PROPERTY_MODE) == 0 ? GuiMode.BURNING : GuiMode.UNLEARNING;
     }
 
-    /** Returns whether the learn-on-burn toggle is enabled. */
     public boolean isLearnEnabled() {
         return propertyDelegate.get(PROPERTY_LEARN_ENABLED) != 0;
     }
 
-    /** Sets the GUI mode (server-side). Propagates to the client automatically. */
     public void setMode(GuiMode mode) {
         propertyDelegate.set(PROPERTY_MODE, mode == GuiMode.BURNING ? 0 : 1);
+    }
+
+    /**
+     * Returns the player's EMC balance as synced via PropertyDelegate.
+     * Reconstructs a {@code long} from two {@code int} properties.
+     */
+    public long getClientEmc() {
+        int low = propertyDelegate.get(PROPERTY_EMC_LOW);
+        int high = propertyDelegate.get(PROPERTY_EMC_HIGH);
+        return ((long) high << 32) | (low & 0xFFFFFFFFL);
+    }
+
+    // ── Tick-level EMC sync ──────────────────────────────────────────────
+
+    /**
+     * Called every server tick by the vanilla screen-handler infrastructure.
+     * Updates the EMC property delegate so the client always has a fresh value.
+     */
+    @Override
+    public void sendContentUpdates() {
+        if (!player.getWorld().isClient()) {
+            long emc = EMCManager.getEmcFromPlayer(new Player(player));
+            propertyDelegate.set(PROPERTY_EMC_LOW, (int) emc);
+            propertyDelegate.set(PROPERTY_EMC_HIGH, (int) (emc >>> 32));
+        }
+        super.sendContentUpdates();
     }
 
     // ── Slot interaction ─────────────────────────────────────────────────
 
     /**
      * Intercepts slot clicks to implement burning and mode-gating.
-     *
-     * <ul>
-     *   <li>In UNLEARNING mode, <em>all</em> slot interactions are blocked.</li>
-     *   <li>In BURNING mode, shift + left click burns the <b>entire stack</b>;
-     *       shift + right click burns <b>one item</b>.  Items without EMC
-     *       are ignored entirely.</li>
-     * </ul>
+     * <p>Burn logic (EMC increment, learn registration) runs only on the
+     * server; the client side still decrements the stack for prediction.</p>
      */
     @Override
     public void onSlotClick(int slotIndex, int button, SlotActionType actionType, PlayerEntity player) {
@@ -135,7 +136,9 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
                 long emcValue = EMCManager.get(stack.getItem());
                 if (emcValue > 0) {
                     int burnCount = (button == 0) ? stack.getCount() : 1;
-                    burnItems(stack.getItem(), burnCount, emcValue);
+                    if (!player.getWorld().isClient()) {
+                        burnItems(stack.getItem(), burnCount, emcValue);
+                    }
                     stack.decrement(burnCount);
                     if (stack.isEmpty()) {
                         slot.setStack(ItemStack.EMPTY);
@@ -176,10 +179,6 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
         return true;
     }
 
-    /**
-     * All shift-click actions are handled by {@link #onSlotClick}.
-     * This method returns EMPTY to satisfy the contract and prevent loops.
-     */
     @Override
     public ItemStack quickMove(PlayerEntity player, int index) {
         return ItemStack.EMPTY;
@@ -187,12 +186,6 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
 
     // ── Private helpers ──────────────────────────────────────────────────
 
-    /**
-     * Burns the item currently held on the player's cursor.
-     *
-     * @param singleOnly if {@code true}, only one item is burned;
-     *                   otherwise the entire stack is consumed
-     */
     private void burnCursorStack(boolean singleOnly) {
         if (getMode() != GuiMode.BURNING) return;
 
@@ -212,10 +205,13 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
     }
 
     /**
-     * Converts {@code count} of the given item to EMC, optionally registering
-     * the item to the player's team when the learn toggle is enabled.
+     * Converts items to EMC.  Runs server-side only (called from
+     * {@link #onButtonClick} which is server-only, and guarded in
+     * {@link #onSlotClick}).
      */
     private void burnItems(Item item, int count, long emcPerItem) {
+        if (player.getWorld().isClient()) return;
+
         Player mcpPlayer = new Player(this.player);
         EMCManager.incrementEmc(mcpPlayer, emcPerItem * count);
 
