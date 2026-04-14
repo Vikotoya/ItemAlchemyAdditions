@@ -1,15 +1,12 @@
 package pl.viko.itemalchemyaddon.networking.packet;
 
-import net.fabricmc.fabric.api.networking.v1.PacketSender;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.network.ServerPlayNetworkHandler;
-import net.minecraft.server.network.ServerPlayerEntity;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.itemalchemy.data.ModState;
 import net.pitan76.itemalchemy.data.ServerState;
 import net.pitan76.itemalchemy.data.TeamState;
 import net.pitan76.mcpitanlib.api.entity.Player;
+import net.pitan76.mcpitanlib.api.network.PacketByteUtil;
+import net.pitan76.mcpitanlib.api.network.v2.args.ServerReceiveEvent;
 import pl.viko.itemalchemyaddon.screen.AlchemicalTableMk2ScreenHandler;
 import pl.viko.itemalchemyaddon.screen.AlchemicalTableMk2ScreenHandler.GuiMode;
 
@@ -27,34 +24,33 @@ import java.util.Optional;
  */
 public class UnlearnItemsC2SPacket {
 
-    public static void receive(MinecraftServer server, ServerPlayerEntity player,
-                               ServerPlayNetworkHandler handler, PacketByteBuf buf,
-                               PacketSender responseSender) {
+    public static void receive(ServerReceiveEvent e) {
 
-        int count = buf.readInt();
+        int count = PacketByteUtil.readInt(e.buf);
         List<String> itemIds = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
-            itemIds.add(buf.readString());
+            itemIds.add(PacketByteUtil.readString(e.buf));
         }
 
-        server.execute(() -> {
-            if (!(player.currentScreenHandler instanceof AlchemicalTableMk2ScreenHandler screenHandler)) {
+        e.server.execute(() -> {
+            Player player = e.player;
+            if (!(player.getCurrentScreenHandler() instanceof AlchemicalTableMk2ScreenHandler screenHandler)) {
                 return;
             }
             if (screenHandler.getMode() != GuiMode.UNLEARNING) {
                 return;
             }
 
-            Optional<TeamState> teamState = ModState.getModState(player.getServer())
-                    .getTeamByPlayer(player.getUuid());
+            Optional<TeamState> teamState = ModState.getModState(e.server)
+                    .getTeamByPlayer(player.getUUID());
             if (teamState.isPresent()) {
                 teamState.get().registeredItems.removeAll(itemIds);
-                ServerState.of(player.getServer()).callMarkDirty();
+                ServerState.of(e.server).callMarkDirty();
             }
 
             screenHandler.setMode(GuiMode.BURNING);
 
-            EMCManager.syncS2C(new Player(player));
+            EMCManager.syncS2C(player);
         });
     }
 }

@@ -1,14 +1,20 @@
 package pl.viko.itemalchemyaddon.command;
 
-import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.item.ItemStack;
-import net.minecraft.recipe.*;
-import net.minecraft.registry.DynamicRegistryManager;
-import net.minecraft.server.command.CommandManager;
-import net.minecraft.server.command.ServerCommandSource;
-import net.minecraft.text.Text;
+import net.minecraft.recipe.Ingredient;
+import net.minecraft.recipe.RecipeType;
 import net.pitan76.itemalchemy.EMCManager;
+import net.pitan76.mcpitanlib.api.command.CommandRegistry;
+import net.pitan76.mcpitanlib.api.command.CommandSettings;
+import net.pitan76.mcpitanlib.api.command.LiteralCommand;
+import net.pitan76.mcpitanlib.api.event.ServerCommandEvent;
+import net.pitan76.mcpitanlib.api.util.CompatIdentifier;
+import net.pitan76.mcpitanlib.api.util.IngredientUtil;
+import net.pitan76.mcpitanlib.api.util.RecipeUtil;
+import net.pitan76.mcpitanlib.api.util.RegistryLookupUtil;
+import net.pitan76.mcpitanlib.midohra.recipe.ServerRecipeManager;
+import net.pitan76.mcpitanlib.midohra.recipe.entry.RecipeEntry;
+import net.pitan76.mcpitanlib.midohra.world.World;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,14 +32,29 @@ public class ReloadEmcCommand {
 
     /**
      * Registers the {@code /itemalchemyaddon reloademc} sub-command.
-     *
-     * @param dispatcher the server command dispatcher
      */
-    public static void register(CommandDispatcher<ServerCommandSource> dispatcher) {
-        dispatcher.register(CommandManager.literal("itemalchemyaddon")
-                .then(CommandManager.literal("reloademc")
-                        .executes(ReloadEmcCommand::reloadEmc)
-                )
+    public static void register() {
+        CommandRegistry.register("itemalchemyaddon", new LiteralCommand() {
+            @Override
+            public void init(CommandSettings settings) {
+                super.init(settings);
+                addArgumentCommand("reloademc", new LiteralCommand() {
+                    @Override
+                    public void execute(ServerCommandEvent e) {
+                        reloadEmc(e);
+                    }
+                });
+            }
+
+            @Override
+            public void execute(ServerCommandEvent e) {
+                e.sendSuccess("Usage: /itemalchemyaddon reloademc");
+                e.sendSuccess("Recalculates EMC values for items based on their recipes.");
+            }
+                }
+//                .then(CommandManager.literal("reloademc")
+//                        .executes(ReloadEmcCommand::reloadEmc)
+//                )
         );
     }
 
@@ -51,24 +72,23 @@ public class ReloadEmcCommand {
      *
      * @return {@code 1} (success) — always
      */
-    private static int reloadEmc(CommandContext<ServerCommandSource> context) {
-        ServerCommandSource source = context.getSource();
-        source.sendMessage(Text.literal("Recalculating EMC from recipes..."));
+    private static int reloadEmc(ServerCommandEvent e) {
+//        ServerCommandSource source = e.getSource();
+        e.sendSuccess("Recalculating EMC from recipes...");
 
-        RecipeManager recipeManager = source.getServer().getRecipeManager();
-        DynamicRegistryManager registryManager = source.getServer().getRegistryManager();
+        ServerRecipeManager recipeManager = World.of(e.getWorld()).toServerWorld().get().getRecipeManager();
 
-        List<Recipe<?>> allRecipes = new ArrayList<>();
-        allRecipes.addAll(recipeManager.listAllOfType(RecipeType.CRAFTING));
-        allRecipes.addAll(recipeManager.listAllOfType(RecipeType.SMELTING));
-        allRecipes.addAll(recipeManager.listAllOfType(RecipeType.BLASTING));
-        allRecipes.addAll(recipeManager.listAllOfType(RecipeType.SMOKING));
-        allRecipes.addAll(recipeManager.listAllOfType(RecipeType.CAMPFIRE_COOKING));
+        List<RecipeEntry> allRecipes = new ArrayList<>();
+        allRecipes.addAll(recipeManager.toMinecraft().listAllOfType(RecipeType.CRAFTING).stream().map(r -> RecipeEntry.of(r, CompatIdentifier.fromMinecraft(r.getId()))).toList());
+        allRecipes.addAll(recipeManager.toMinecraft().listAllOfType(RecipeType.SMELTING).stream().map(r -> RecipeEntry.of(r, CompatIdentifier.fromMinecraft(r.getId()))).toList());
+        allRecipes.addAll(recipeManager.toMinecraft().listAllOfType(RecipeType.BLASTING).stream().map(r -> RecipeEntry.of(r, CompatIdentifier.fromMinecraft(r.getId()))).toList());
+        allRecipes.addAll(recipeManager.toMinecraft().listAllOfType(RecipeType.SMOKING).stream().map(r -> RecipeEntry.of(r, CompatIdentifier.fromMinecraft(r.getId()))).toList());
+        allRecipes.addAll(recipeManager.toMinecraft().listAllOfType(RecipeType.CAMPFIRE_COOKING).stream().map(r -> RecipeEntry.of(r, CompatIdentifier.fromMinecraft(r.getId()))).toList());
 
-        source.sendMessage(Text.literal("Found " + allRecipes.size() + " recipes to process"));
+        e.sendSuccess("Found " + allRecipes.size() + " recipes to process");
 
-        List<Recipe<?>> processedRecipes = new ArrayList<>();
-        List<Recipe<?>> unprocessedRecipes = new ArrayList<>(allRecipes);
+        List<RecipeEntry> processedRecipes = new ArrayList<>();
+        List<RecipeEntry> unprocessedRecipes = new ArrayList<>(allRecipes);
         int successfulCalculations = 0;
         boolean changesMadeInPass;
 
@@ -76,22 +96,22 @@ public class ReloadEmcCommand {
         do {
             pass++;
             changesMadeInPass = false;
-            List<Recipe<?>> remainingRecipes = new ArrayList<>();
+            List<RecipeEntry> remainingRecipes = new ArrayList<>();
 
-            for (Recipe<?> recipe : unprocessedRecipes) {
+            for (RecipeEntry recipe : unprocessedRecipes) {
                 if (processedRecipes.contains(recipe)) {
                     continue;
                 }
 
-                ItemStack output = recipe.getOutput(registryManager);
+                ItemStack output = RecipeUtil.getOutput(recipe.toMinecraft(), RegistryLookupUtil.getRegistryLookup(e.getWorld()));
                 if (output.isEmpty()) {
                     processedRecipes.add(recipe);
                     continue;
                 }
 
                 if (pass == 1) {
-                    source.sendMessage(Text.literal("Processing recipe: " + recipe.getId()
-                            + " -> " + output.getItem().getName().getString()));
+                    e.sendSuccess("Processing recipe: " + recipe.getId()
+                            + " -> " + output.getItem().getName().getString());
                 }
 
                 if (EMCManager.get(output.getItem()) > 0) {
@@ -103,8 +123,8 @@ public class ReloadEmcCommand {
                     processedRecipes.add(recipe);
                     changesMadeInPass = true;
                     successfulCalculations++;
-                    source.sendMessage(Text.literal("Added EMC for: "
-                            + output.getName().getString() + " = " + EMCManager.get(output.getItem())));
+                    e.sendSuccess("Added EMC for: "
+                            + output.getName().getString() + " = " + EMCManager.get(output.getItem()));
                 } else {
                     remainingRecipes.add(recipe);
                 }
@@ -112,8 +132,8 @@ public class ReloadEmcCommand {
             unprocessedRecipes = remainingRecipes;
         } while (changesMadeInPass && pass < 10);
 
-        source.sendMessage(Text.literal("EMC recalculation complete. Computed values for "
-                + successfulCalculations + " new items."));
+        e.sendSuccess("EMC recalculation complete. Computed values for "
+                + successfulCalculations + " new items.");
         return 1;
     }
 
@@ -130,12 +150,12 @@ public class ReloadEmcCommand {
      * @param recipe the recipe to evaluate
      * @return {@code true} if a new EMC value was successfully assigned
      */
-    private static boolean calculateEmcFromRecipe(ItemStack output, Recipe<?> recipe) {
+    private static boolean calculateEmcFromRecipe(ItemStack output, RecipeEntry recipe) {
         long totalEmc = 0;
         boolean allIngredientsHaveEmc = true;
 
-        for (Ingredient ingredient : recipe.getIngredients()) {
-            ItemStack[] matchingStacks = ingredient.getMatchingStacks();
+        for (Ingredient ingredient : recipe.getRecipe().getInputs()) {
+            ItemStack[] matchingStacks = IngredientUtil.getMatchingStacks(ingredient);
             if (matchingStacks.length == 0) {
                 continue;
             }

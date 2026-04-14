@@ -1,12 +1,9 @@
 package pl.viko.itemalchemyaddon.screen;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.render.GameRenderer;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemGroup;
 import net.minecraft.item.ItemGroups;
@@ -15,11 +12,19 @@ import net.minecraft.item.Items;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
+
 import net.minecraft.util.math.MathHelper;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.itemalchemy.ItemAlchemyClient;
 import net.pitan76.itemalchemy.data.TeamState;
+import net.pitan76.mcpitanlib.api.client.gui.screen.SimpleHandledScreen;
+import net.pitan76.mcpitanlib.api.client.render.handledscreen.DrawBackgroundArgs;
+import net.pitan76.mcpitanlib.api.client.render.handledscreen.DrawMouseoverTooltipArgs;
+import net.pitan76.mcpitanlib.api.client.render.handledscreen.KeyEventArgs;
+import net.pitan76.mcpitanlib.api.client.render.handledscreen.RenderArgs;
+import net.pitan76.mcpitanlib.api.network.v2.ClientNetworking;
+import net.pitan76.mcpitanlib.api.util.CompatIdentifier;
+import net.pitan76.mcpitanlib.api.util.client.RenderUtil;
 import net.pitan76.mcpitanlib.api.util.item.ItemUtil;
 import org.jetbrains.annotations.Nullable;
 import pl.viko.itemalchemyaddon.ItemAlchemyAddon;
@@ -32,7 +37,7 @@ import java.util.*;
 /**
  * Client-side screen for the Alchemical Table Mk2.
  */
-public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2ScreenHandler> {
+public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTableMk2ScreenHandler> {
 
     // ── Filter / Sort enums ─────────────────────────────────────────────
 
@@ -42,8 +47,8 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         UNKNOWN("filter_unknown"),
         EMC_NULL("filter_emc_null");
 
-        final Identifier texture;
-        final Identifier hoveredTexture;
+        final CompatIdentifier texture;
+        final CompatIdentifier hoveredTexture;
 
         FilterMode(String name) {
             this.texture = widgetTex(name);
@@ -61,8 +66,8 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         EMC_DESC("sort_emc_desc"),
         EMC_ASC("sort_emc_asc");
 
-        final Identifier texture;
-        final Identifier hoveredTexture;
+        final CompatIdentifier texture;
+        final CompatIdentifier hoveredTexture;
 
         SortMode(String name) {
             this.texture = widgetTex(name);
@@ -76,36 +81,36 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
 
     // ── Texture identifiers ─────────────────────────────────────────────
 
-    private static final Identifier TEXTURE = new Identifier(ItemAlchemyAddon.MOD_ID,
+    private static final CompatIdentifier TEXTURE = CompatIdentifier.of(ItemAlchemyAddon.MOD_ID,
             "textures/gui/alchemical_table_mk2_gui.png");
 
-    private static final Identifier BURN_SLOT_TEX = widgetTex("burn_slot");
-    private static final Identifier BURN_SLOT_HOVER_TEX = widgetTex("burn_slot_hovered");
-    private static final Identifier TOGGLE_UNLEARN_TEX = widgetTex("toggle_unlearn_mode");
-    private static final Identifier TOGGLE_UNLEARN_HOVER_TEX = widgetTex("toggle_unlearn_mode_hovered");
-    private static final Identifier TOGGLE_LEARN_ON_TEX = widgetTex("toggle_learn_on");
-    private static final Identifier TOGGLE_LEARN_OFF_TEX = widgetTex("toggle_learn_off");
-    private static final Identifier TEXT_LEARN_ON_TEX = widgetTex("text_learn_on");
-    private static final Identifier TEXT_LEARN_OFF_TEX = widgetTex("text_learn_off");
-    private static final Identifier CONFIRM_TEX = widgetTex("confirm");
-    private static final Identifier CONFIRM_HOVER_TEX = widgetTex("confirm_hovered");
-    private static final Identifier DENY_TEX = widgetTex("deny");
-    private static final Identifier DENY_HOVER_TEX = widgetTex("deny_hovered");
-    private static final Identifier CROSS_ICON_TEX = widgetTex("cross_icon");
-    private static final Identifier SMALL_CROSS_TEX = widgetTex("small_cross");
+    private static final CompatIdentifier BURN_SLOT_TEX = widgetTex("burn_slot");
+    private static final CompatIdentifier BURN_SLOT_HOVER_TEX = widgetTex("burn_slot_hovered");
+    private static final CompatIdentifier TOGGLE_UNLEARN_TEX = widgetTex("toggle_unlearn_mode");
+    private static final CompatIdentifier TOGGLE_UNLEARN_HOVER_TEX = widgetTex("toggle_unlearn_mode_hovered");
+    private static final CompatIdentifier TOGGLE_LEARN_ON_TEX = widgetTex("toggle_learn_on");
+    private static final CompatIdentifier TOGGLE_LEARN_OFF_TEX = widgetTex("toggle_learn_off");
+    private static final CompatIdentifier TEXT_LEARN_ON_TEX = widgetTex("text_learn_on");
+    private static final CompatIdentifier TEXT_LEARN_OFF_TEX = widgetTex("text_learn_off");
+    private static final CompatIdentifier CONFIRM_TEX = widgetTex("confirm");
+    private static final CompatIdentifier CONFIRM_HOVER_TEX = widgetTex("confirm_hovered");
+    private static final CompatIdentifier DENY_TEX = widgetTex("deny");
+    private static final CompatIdentifier DENY_HOVER_TEX = widgetTex("deny_hovered");
+    private static final CompatIdentifier CROSS_ICON_TEX = widgetTex("cross_icon");
+    private static final CompatIdentifier SMALL_CROSS_TEX = widgetTex("small_cross");
 
-    private static final Identifier TAB_ACTIVE_TEX = widgetTex("tab_active");
-    private static final Identifier TAB_INACTIVE_TEX = widgetTex("tab_inactive");
-    private static final Identifier TAB_SCROLL_LEFT_TEX = widgetTex("tab_scroll_left");
-    private static final Identifier TAB_SCROLL_LEFT_HOVER_TEX = widgetTex("tab_scroll_left_hovered");
-    private static final Identifier TAB_SCROLL_RIGHT_TEX = widgetTex("tab_scroll_right");
-    private static final Identifier TAB_SCROLL_RIGHT_HOVER_TEX = widgetTex("tab_scroll_right_hovered");
+    private static final CompatIdentifier TAB_ACTIVE_TEX = widgetTex("tab_active");
+    private static final CompatIdentifier TAB_INACTIVE_TEX = widgetTex("tab_inactive");
+    private static final CompatIdentifier TAB_SCROLL_LEFT_TEX = widgetTex("tab_scroll_left");
+    private static final CompatIdentifier TAB_SCROLL_LEFT_HOVER_TEX = widgetTex("tab_scroll_left_hovered");
+    private static final CompatIdentifier TAB_SCROLL_RIGHT_TEX = widgetTex("tab_scroll_right");
+    private static final CompatIdentifier TAB_SCROLL_RIGHT_HOVER_TEX = widgetTex("tab_scroll_right_hovered");
 
-    private static final Identifier SLIDER_TEX = widgetTex("slider");
-    private static final Identifier SLIDER_HOVER_TEX = widgetTex("slider_hovered");
+    private static final CompatIdentifier SLIDER_TEX = widgetTex("slider");
+    private static final CompatIdentifier SLIDER_HOVER_TEX = widgetTex("slider_hovered");
 
-    private static Identifier widgetTex(String name) {
-        return new Identifier(ItemAlchemyAddon.MOD_ID, "textures/gui/widgets/" + name + ".png");
+    private static CompatIdentifier widgetTex(String name) {
+        return CompatIdentifier.of(ItemAlchemyAddon.MOD_ID, "textures/gui/widgets/" + name + ".png");
     }
 
     // ── Widget layout constants (offsets from GUI origin) ────────────────
@@ -191,8 +196,8 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
     // ── Lifecycle ────────────────────────────────────────────────────────
 
     @Override
-    protected void init() {
-        super.init();
+    public void initOverride() {
+        super.initOverride();
         this.listX = this.x + 30;
         this.listY = this.y + 33;
         this.listWidth = 162;
@@ -345,9 +350,9 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
     }
 
     @Override
-    protected void drawBackground(DrawContext context, float delta, int mouseX, int mouseY) {
-        RenderSystem.setShader(GameRenderer::getPositionTexProgram);
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+    public void drawBackgroundOverride(DrawBackgroundArgs args) {
+        RenderUtil.setShaderToPositionTexProgram();
+        RenderUtil.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         int guiX = (width - backgroundWidth) / 2;
         int guiY = (height - backgroundHeight) / 2;
 
@@ -355,20 +360,20 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         for (int slot = 0; slot < MAX_VISIBLE_TABS && tabScrollIndex + slot < itemGroups.size(); slot++) {
             int tabIndex = tabScrollIndex + slot;
             if (tabIndex != selectedItemGroupIndex) {
-                context.drawTexture(TAB_INACTIVE_TEX,
+                RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, TAB_INACTIVE_TEX,
                         guiX + TAB_X_OFFSETS[slot], guiY + TAB_Y_OFFSET,
                         0, 0, TAB_W, TAB_H, TAB_W, TAB_H);
             }
         }
 
         // ── Main GUI texture ──
-        context.drawTexture(TEXTURE, guiX, guiY, 0, 0, backgroundWidth, backgroundHeight,
+        RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, TEXTURE, guiX, guiY, 0, 0, backgroundWidth, backgroundHeight,
                 backgroundWidth, backgroundHeight);
 
         // ── Active tab (on top of GUI edge) ──
         int activeSlot = selectedItemGroupIndex - tabScrollIndex;
         if (activeSlot >= 0 && activeSlot < MAX_VISIBLE_TABS) {
-            context.drawTexture(TAB_ACTIVE_TEX,
+            RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, TAB_ACTIVE_TEX,
                     guiX + TAB_X_OFFSETS[activeSlot], guiY + TAB_Y_OFFSET,
                     0, 0, TAB_W, TAB_H, TAB_W, TAB_H);
         }
@@ -381,66 +386,66 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
             int tabPixelY = guiY + TAB_Y_OFFSET;
             int iconDx = isActive ? TAB_ICON_ACTIVE_DX : TAB_ICON_INACTIVE_DX;
             int iconDy = isActive ? TAB_ICON_ACTIVE_DY : TAB_ICON_INACTIVE_DY;
-            context.drawItem(itemGroups.get(tabIndex).getIcon(), tabPixelX + iconDx, tabPixelY + iconDy);
+            args.drawObjectDM.getContext().drawItem(itemGroups.get(tabIndex).getIcon(), tabPixelX + iconDx, tabPixelY + iconDy);
         }
 
         // ── Tab scroll arrows ──
         if (itemGroups.size() > MAX_VISIBLE_TABS) {
-            boolean leftHover = isInside(mouseX, mouseY,
+            boolean leftHover = isInside(args.mouseX, args.mouseY,
                     guiX + TAB_SCROLL_LEFT_X, guiY + TAB_SCROLL_LEFT_Y, TAB_SCROLL_W, TAB_SCROLL_H);
-            context.drawTexture(leftHover ? TAB_SCROLL_LEFT_HOVER_TEX : TAB_SCROLL_LEFT_TEX,
+            RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, leftHover ? TAB_SCROLL_LEFT_HOVER_TEX : TAB_SCROLL_LEFT_TEX,
                     guiX + TAB_SCROLL_LEFT_X, guiY + TAB_SCROLL_LEFT_Y,
                     0, 0, TAB_SCROLL_W, TAB_SCROLL_H, TAB_SCROLL_W, TAB_SCROLL_H);
 
-            boolean rightHover = isInside(mouseX, mouseY,
+            boolean rightHover = isInside(args.mouseX, args.mouseY,
                     guiX + TAB_SCROLL_RIGHT_X, guiY + TAB_SCROLL_RIGHT_Y, TAB_SCROLL_W, TAB_SCROLL_H);
-            context.drawTexture(rightHover ? TAB_SCROLL_RIGHT_HOVER_TEX : TAB_SCROLL_RIGHT_TEX,
+            RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, rightHover ? TAB_SCROLL_RIGHT_HOVER_TEX : TAB_SCROLL_RIGHT_TEX,
                     guiX + TAB_SCROLL_RIGHT_X, guiY + TAB_SCROLL_RIGHT_Y,
                     0, 0, TAB_SCROLL_W, TAB_SCROLL_H, TAB_SCROLL_W, TAB_SCROLL_H);
         }
 
         // ── Persistent widgets with hover ──
-        boolean filterHover = isInside(mouseX, mouseY, guiX + FILTER_X, guiY + FILTER_Y, WIDGET_SIZE, WIDGET_SIZE);
-        context.drawTexture(filterHover ? currentFilterMode.hoveredTexture : currentFilterMode.texture,
+        boolean filterHover = isInside(args.mouseX, args.mouseY, guiX + FILTER_X, guiY + FILTER_Y, WIDGET_SIZE, WIDGET_SIZE);
+        RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, filterHover ? currentFilterMode.hoveredTexture : currentFilterMode.texture,
                 guiX + FILTER_X, guiY + FILTER_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
 
-        boolean sortHover = isInside(mouseX, mouseY, guiX + SORT_X, guiY + SORT_Y, WIDGET_SIZE, WIDGET_SIZE);
-        context.drawTexture(sortHover ? currentSortMode.hoveredTexture : currentSortMode.texture,
+        boolean sortHover = isInside(args.mouseX, args.mouseY, guiX + SORT_X, guiY + SORT_Y, WIDGET_SIZE, WIDGET_SIZE);
+        RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, sortHover ? currentSortMode.hoveredTexture : currentSortMode.texture,
                 guiX + SORT_X, guiY + SORT_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
 
-        boolean unlearnHover = isInside(mouseX, mouseY, guiX + UNLEARN_TOGGLE_X, guiY + UNLEARN_TOGGLE_Y, WIDGET_SIZE, WIDGET_SIZE);
-        context.drawTexture(unlearnHover ? TOGGLE_UNLEARN_HOVER_TEX : TOGGLE_UNLEARN_TEX,
+        boolean unlearnHover = isInside(args.mouseX, args.mouseY, guiX + UNLEARN_TOGGLE_X, guiY + UNLEARN_TOGGLE_Y, WIDGET_SIZE, WIDGET_SIZE);
+        RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, unlearnHover ? TOGGLE_UNLEARN_HOVER_TEX : TOGGLE_UNLEARN_TEX,
                 guiX + UNLEARN_TOGGLE_X, guiY + UNLEARN_TOGGLE_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
 
         // ── Mode-specific widgets ──
         if (getMode() == GuiMode.BURNING) {
-            boolean burnHover = isInside(mouseX, mouseY, guiX + BURN_SLOT_X, guiY + BURN_SLOT_Y, WIDGET_SIZE, WIDGET_SIZE);
-            context.drawTexture(burnHover ? BURN_SLOT_HOVER_TEX : BURN_SLOT_TEX,
+            boolean burnHover = isInside(args.mouseX, args.mouseY, guiX + BURN_SLOT_X, guiY + BURN_SLOT_Y, WIDGET_SIZE, WIDGET_SIZE);
+            RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, burnHover ? BURN_SLOT_HOVER_TEX : BURN_SLOT_TEX,
                     guiX + BURN_SLOT_X, guiY + BURN_SLOT_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
 
-            Identifier learnTex = this.handler.isLearnEnabled() ? TOGGLE_LEARN_ON_TEX : TOGGLE_LEARN_OFF_TEX;
-            context.drawTexture(learnTex,
+            CompatIdentifier learnTex = this.handler.isLearnEnabled() ? TOGGLE_LEARN_ON_TEX : TOGGLE_LEARN_OFF_TEX;
+            RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, learnTex,
                     guiX + LEARN_TOGGLE_X, guiY + LEARN_TOGGLE_Y, 0, 0,
                     LEARN_TOGGLE_W, LEARN_TOGGLE_H, LEARN_TOGGLE_W, LEARN_TOGGLE_H);
 
-            Identifier textTex = this.handler.isLearnEnabled() ? TEXT_LEARN_ON_TEX : TEXT_LEARN_OFF_TEX;
-            context.drawTexture(textTex,
+            CompatIdentifier textTex = this.handler.isLearnEnabled() ? TEXT_LEARN_ON_TEX : TEXT_LEARN_OFF_TEX;
+            RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, textTex,
                     guiX + LEARN_TEXT_X, guiY + LEARN_TEXT_Y, 0, 0,
                     LEARN_TEXT_W, LEARN_TEXT_H, LEARN_TEXT_W, LEARN_TEXT_H);
         } else {
-            boolean confirmHover = isInside(mouseX, mouseY, guiX + CONFIRM_X, guiY + CONFIRM_Y, WIDGET_SIZE, WIDGET_SIZE);
-            context.drawTexture(confirmHover ? CONFIRM_HOVER_TEX : CONFIRM_TEX,
+            boolean confirmHover = isInside(args.mouseX, args.mouseY, guiX + CONFIRM_X, guiY + CONFIRM_Y, WIDGET_SIZE, WIDGET_SIZE);
+            RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, confirmHover ? CONFIRM_HOVER_TEX : CONFIRM_TEX,
                     guiX + CONFIRM_X, guiY + CONFIRM_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
 
-            boolean denyHover = isInside(mouseX, mouseY, guiX + DENY_X, guiY + DENY_Y, WIDGET_SIZE, WIDGET_SIZE);
-            context.drawTexture(denyHover ? DENY_HOVER_TEX : DENY_TEX,
+            boolean denyHover = isInside(args.mouseX, args.mouseY, guiX + DENY_X, guiY + DENY_Y, WIDGET_SIZE, WIDGET_SIZE);
+            RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, denyHover ? DENY_HOVER_TEX : DENY_TEX,
                     guiX + DENY_X, guiY + DENY_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
         }
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        this.renderBackground(context);
+    public void renderOverride(RenderArgs args) {
+        this.callRenderBackground(args);
 
         GuiMode currentMode = getMode();
         if (currentMode != previousMode) {
@@ -457,17 +462,17 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
             updateItemsBasedOnTab();
         }
 
-        super.render(context, mouseX, mouseY, delta);
+        super.renderOverride(args);
 
         // ── Search field (rendered manually, not via addDrawableChild) ──
         if (this.searchField != null) {
-            this.searchField.render(context, mouseX, mouseY, delta);
+            this.searchField.render(args.drawObjectDM.getContext(), args.mouseX, args.mouseY, args.delta);
         }
 
         // ── Item grid ──
         ItemStack hoveredStack = null;
 
-        context.enableScissor(listX, listY, listX + listWidth, listY + listHeight);
+        args.drawObjectDM.getContext().enableScissor(listX, listY, listX + listWidth, listY + listHeight);
         for (int i = 0; i < itemsToShow.size(); i++) {
             ItemStack stack = itemsToShow.get(i);
             int itemX = listX + (i % ROW_COUNT) * 18;
@@ -482,34 +487,34 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
                 if (dimItem) {
                     RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 0.5F);
                 }
-                context.drawItem(stack, itemX, itemY);
+                args.drawObjectDM.getContext().drawItem(stack, itemX, itemY);
                 if (dimItem) {
                     RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
                 }
 
                 if (currentFilterMode == FilterMode.ALL && !hasEmc) {
-                    context.getMatrices().push();
-                    context.getMatrices().translate(0, 0, 200);
-                    context.drawTexture(SMALL_CROSS_TEX,
+                    args.drawObjectDM.getContext().getMatrices().push();
+                    args.drawObjectDM.getContext().getMatrices().translate(0, 0, 200);
+                    RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, SMALL_CROSS_TEX,
                             itemX, itemY, 0, 0, 16, 16, 16, 16);
-                    context.getMatrices().pop();
+                    args.drawObjectDM.getContext().getMatrices().pop();
                 }
 
                 if (getMode() == GuiMode.UNLEARNING && unlearnSelection.contains(itemId)) {
-                    context.getMatrices().push();
-                    context.getMatrices().translate(0, 0, 200);
-                    context.drawTexture(CROSS_ICON_TEX,
+                    args.drawObjectDM.getContext().getMatrices().push();
+                    args.drawObjectDM.getContext().getMatrices().translate(0, 0, 200);
+                    RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, CROSS_ICON_TEX,
                             itemX - 1, itemY - 1, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
-                    context.getMatrices().pop();
+                    args.drawObjectDM.getContext().getMatrices().pop();
                 }
 
-                if (mouseX >= itemX && mouseX < itemX + 16 && mouseY >= itemY && mouseY < itemY + 16) {
-                    context.fill(itemX, itemY, itemX + 16, itemY + 16, 0x80FFFFFF);
+                if (args.mouseX >= itemX && args.mouseX < itemX + 16 && args.mouseY >= itemY && args.mouseY < itemY + 16) {
+                    args.drawObjectDM.getContext().fill(itemX, itemY, itemX + 16, itemY + 16, 0x80FFFFFF);
                     hoveredStack = stack;
                 }
             }
         }
-        context.disableScissor();
+        args.drawObjectDM.getContext().disableScissor();
 
         // ── Custom scrollbar ──
         int maxScroll = Math.max(0, (itemsToShow.size() + ROW_COUNT - 1) / ROW_COUNT * 18 - listHeight);
@@ -522,44 +527,44 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         } else {
             sliderY = SLIDER_TOP_Y;
         }
-        context.drawTexture(isDragging ? SLIDER_HOVER_TEX : SLIDER_TEX,
+        RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, isDragging ? SLIDER_HOVER_TEX : SLIDER_TEX,
                 guiX + SLIDER_X, guiY + sliderY, 0, 0, SLIDER_W, SLIDER_H, SLIDER_W, SLIDER_H);
 
         // ── Tab tooltip ──
         for (int slot = 0; slot < MAX_VISIBLE_TABS && tabScrollIndex + slot < itemGroups.size(); slot++) {
             int tabPixelX = guiX + TAB_X_OFFSETS[slot];
             int tabPixelY = guiY + TAB_Y_OFFSET;
-            if (isInside(mouseX, mouseY, tabPixelX, tabPixelY, TAB_W, TAB_H)) {
+            if (isInside(args.mouseX, args.mouseY, tabPixelX, tabPixelY, TAB_W, TAB_H)) {
                 int tabIndex = tabScrollIndex + slot;
                 ItemGroup group = this.itemGroups.get(tabIndex);
                 Text tabName = (group.getType() == ItemGroup.Type.SEARCH)
                         ? Text.literal("All Items")
                         : group.getDisplayName();
-                context.drawTooltip(this.textRenderer, List.of(tabName), mouseX, mouseY);
+                args.drawObjectDM.getContext().drawTooltip(this.textRenderer, List.of(tabName), args.mouseX, args.mouseY);
                 break;
             }
         }
 
         // ── Item tooltip ──
-        drawMouseoverTooltip(context, mouseX, mouseY);
+        callDrawMouseoverTooltip(new DrawMouseoverTooltipArgs(args.drawObjectDM, args.mouseX, args.mouseY));
         if (hoveredStack != null) {
-            context.drawTooltip(this.textRenderer, getTooltipFromItem(this.client, hoveredStack), mouseX, mouseY);
+            args.drawObjectDM.getContext().drawTooltip(this.textRenderer, getTooltipFromItem(this.client, hoveredStack), args.mouseX, args.mouseY);
         }
     }
 
     // ── Input handling ───────────────────────────────────────────────────
 
     @Override
-    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+    public boolean keyPressed(KeyEventArgs args) {
         if (searchField != null && searchField.isFocused()) {
-            if (keyCode == 256) {
+            if (args.keyCode == 256) {
                 searchField.setFocused(false);
                 return true;
             }
-            searchField.keyPressed(keyCode, scanCode, modifiers);
+            searchField.keyPressed(args.keyCode, args.scanCode, args.modifiers);
             return true;
         }
-        return super.keyPressed(keyCode, scanCode, modifiers);
+        return super.keyPressed(args);
     }
 
     @Override
@@ -748,7 +753,7 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
                     PacketByteBuf buf = PacketByteBufs.create();
                     buf.writeItemStack(clickedStack);
                     buf.writeInt(clickType);
-                    ClientPlayNetworking.send(ModMessages.REQUEST_ITEM_ID, buf);
+                    ClientNetworking.send(ModMessages.REQUEST_ITEM_ID, buf);
                     return true;
                 }
             }
@@ -804,6 +809,6 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         for (String id : unlearnSelection) {
             buf.writeString(id);
         }
-        ClientPlayNetworking.send(ModMessages.UNLEARN_ITEMS_ID, buf);
+        ClientNetworking.send(ModMessages.UNLEARN_ITEMS_ID, buf);
     }
 }

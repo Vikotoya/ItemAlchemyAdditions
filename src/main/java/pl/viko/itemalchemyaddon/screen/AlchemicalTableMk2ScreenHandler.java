@@ -6,14 +6,18 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.screen.ArrayPropertyDelegate;
 import net.minecraft.screen.PropertyDelegate;
-import net.minecraft.screen.ScreenHandler;
 import net.minecraft.screen.slot.Slot;
-import net.minecraft.screen.slot.SlotActionType;
+import net.minecraft.server.MinecraftServer;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.itemalchemy.data.ModState;
 import net.pitan76.itemalchemy.data.ServerState;
 import net.pitan76.itemalchemy.data.TeamState;
 import net.pitan76.mcpitanlib.api.entity.Player;
+import net.pitan76.mcpitanlib.api.gui.SimpleScreenHandler;
+import net.pitan76.mcpitanlib.api.gui.args.SlotClickEvent;
+import net.pitan76.mcpitanlib.api.util.ItemStackUtil;
+import net.pitan76.mcpitanlib.api.util.ScreenHandlerUtil;
+import net.pitan76.mcpitanlib.api.util.SlotUtil;
 import net.pitan76.mcpitanlib.api.util.item.ItemUtil;
 
 import java.util.Optional;
@@ -30,7 +34,7 @@ import java.util.Optional;
  * via a {@link PropertyDelegate} (split into two {@code int} properties to
  * represent a full {@code long}).</p>
  */
-public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
+public class AlchemicalTableMk2ScreenHandler extends SimpleScreenHandler {
 
     /** The two operational modes of the GUI. */
     public enum GuiMode { BURNING, UNLEARNING }
@@ -53,14 +57,14 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
 
     // ── Fields ───────────────────────────────────────────────────────────
 
-    private final PlayerEntity player;
+    private final Player player;
     private final PropertyDelegate propertyDelegate;
 
     // ── Constructor ──────────────────────────────────────────────────────
 
     public AlchemicalTableMk2ScreenHandler(int syncId, PlayerInventory playerInventory) {
-        super(ModScreenHandlers.ALCHEMICAL_TABLE_MK2_SCREEN_HANDLER, syncId);
-        this.player = playerInventory.player;
+        super(ModScreenHandlers.ALCHEMICAL_TABLE_MK2_SCREEN_HANDLER.getOrNull(), syncId);
+        this.player = new Player(playerInventory.player);
         this.propertyDelegate = new ArrayPropertyDelegate(PROPERTY_COUNT);
         this.addProperties(this.propertyDelegate);
 
@@ -68,11 +72,11 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
 
         for (int row = 0; row < 3; ++row) {
             for (int col = 0; col < 9; ++col) {
-                this.addSlot(new Slot(playerInventory, col + row * 9 + 9, 30 + col * 18, 170 + row * 18));
+                this.callAddSlot(new Slot(playerInventory, col + row * 9 + 9, 30 + col * 18, 170 + row * 18));
             }
         }
         for (int col = 0; col < 9; ++col) {
-            this.addSlot(new Slot(playerInventory, col, 30 + col * 18, 228));
+            this.callAddSlot(new Slot(playerInventory, col, 30 + col * 18, 228));
         }
     }
 
@@ -109,7 +113,7 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
     @Override
     public void sendContentUpdates() {
         if (!player.getWorld().isClient()) {
-            long emc = EMCManager.getEmcFromPlayer(new Player(player));
+            long emc = EMCManager.getEmcFromPlayer(player);
             propertyDelegate.set(PROPERTY_EMC_LOW, (int) emc);
             propertyDelegate.set(PROPERTY_EMC_HIGH, (int) (emc >>> 32));
         }
@@ -124,32 +128,34 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
      * server; the client side still decrements the stack for prediction.</p>
      */
     @Override
-    public void onSlotClick(int slotIndex, int button, SlotActionType actionType, PlayerEntity player) {
+    public void onSlotClick(SlotClickEvent e) {
         if (getMode() == GuiMode.UNLEARNING) {
             return;
         }
 
-        if (actionType == SlotActionType.QUICK_MOVE && slotIndex >= 0 && slotIndex < this.slots.size()) {
-            Slot slot = this.slots.get(slotIndex);
-            if (slot != null && slot.hasStack()) {
-                ItemStack stack = slot.getStack();
+        int slotIndex = e.getSlot();
+
+        if (e.isQuickCraftAction() && slotIndex >= 0 && slotIndex < ScreenHandlerUtil.getSlots(this).size()) {
+            Slot slot = ScreenHandlerUtil.getSlot(this, slotIndex);
+            if (slot != null && SlotUtil.hasStack(slot)) {
+                ItemStack stack = SlotUtil.getStack(slot);
                 long emcValue = EMCManager.get(stack.getItem());
                 if (emcValue > 0) {
-                    int burnCount = (button == 0) ? stack.getCount() : 1;
-                    if (!player.getWorld().isClient()) {
+                    int burnCount = (e.getButton() == 0) ? stack.getCount() : 1;
+                    if (!player.isClient()) {
                         burnItems(stack.getItem(), burnCount, emcValue);
                     }
                     stack.decrement(burnCount);
                     if (stack.isEmpty()) {
-                        slot.setStack(ItemStack.EMPTY);
+                        SlotUtil.setStack(slot, ItemStack.EMPTY);
                     }
-                    slot.markDirty();
+                    SlotUtil.markDirty(slot);
                 }
             }
             return;
         }
 
-        super.onSlotClick(slotIndex, button, actionType, player);
+        super.onSlotClick(e);
     }
 
     @Override
@@ -175,13 +181,13 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
     }
 
     @Override
-    public boolean canUse(PlayerEntity player) {
+    public boolean canUse(Player player) {
         return true;
     }
 
     @Override
-    public ItemStack quickMove(PlayerEntity player, int index) {
-        return ItemStack.EMPTY;
+    public ItemStack quickMoveOverride(Player player, int index) {
+        return ItemStackUtil.empty();
     }
 
     // ── Private helpers ──────────────────────────────────────────────────
@@ -200,7 +206,7 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
 
         cursor.decrement(burnCount);
         if (cursor.isEmpty()) {
-            setCursorStack(ItemStack.EMPTY);
+            callSetCursorStack(ItemStackUtil.empty());
         }
     }
 
@@ -210,23 +216,24 @@ public class AlchemicalTableMk2ScreenHandler extends ScreenHandler {
      * {@link #onSlotClick}).
      */
     private void burnItems(Item item, int count, long emcPerItem) {
-        if (player.getWorld().isClient()) return;
+        if (player.isClient()) return;
 
-        Player mcpPlayer = new Player(this.player);
-        EMCManager.incrementEmc(mcpPlayer, emcPerItem * count);
+        EMCManager.incrementEmc(this.player, emcPerItem * count);
 
         if (isLearnEnabled()) {
-            Optional<TeamState> teamState = ModState.getModState(player.getServer())
-                    .getTeamByPlayer(player.getUuid());
+            MinecraftServer server = player.getMidohraWorld().getServer();
+
+            Optional<TeamState> teamState = ModState.getModState(server)
+                    .getTeamByPlayer(player.getUUID());
             if (teamState.isPresent()) {
                 String itemId = ItemUtil.toId(item).toString();
                 if (!teamState.get().registeredItems.contains(itemId)) {
                     teamState.get().registeredItems.add(itemId);
-                    ServerState.of(player.getServer()).callMarkDirty();
+                    ServerState.of(server).callMarkDirty();
                 }
             }
         }
 
-        EMCManager.syncS2C(mcpPlayer);
+        EMCManager.syncS2C(this.player);
     }
 }

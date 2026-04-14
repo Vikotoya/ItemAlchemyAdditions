@@ -2,22 +2,24 @@ package pl.viko.itemalchemyaddon.item;
 
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.inventory.Inventories;
-import net.minecraft.inventory.Inventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NbtCompound;
-import net.minecraft.util.collection.DefaultedList;
+import net.pitan76.mcpitanlib.api.entity.Player;
+import net.pitan76.mcpitanlib.api.util.InventoryUtil;
+import net.pitan76.mcpitanlib.api.util.collection.ItemStackList;
+import net.pitan76.mcpitanlib.api.util.inventory.ICompatInventory;
 
 /**
- * An {@link Inventory} implementation backed by an {@link ItemStack}'s NBT data.
+ * An {@link ICompatInventory} implementation backed by an {@link ItemStack}'s NBT data.
  *
  * <p>All mutations are immediately serialized back into the host stack's
  * {@code "Items"} NBT tag, so the inventory contents persist as long as the
  * stack itself does.</p>
  */
-public class ItemInventory implements Inventory {
+public class ItemInventory implements ICompatInventory {
 
     private final ItemStack stack;
-    private final DefaultedList<ItemStack> items;
+    private final ItemStackList items;
 
     /**
      * Creates a new item-backed inventory.
@@ -27,7 +29,7 @@ public class ItemInventory implements Inventory {
      */
     public ItemInventory(ItemStack stack, int size) {
         this.stack = stack;
-        this.items = DefaultedList.ofSize(size, ItemStack.EMPTY);
+        this.items = ItemStackList.ofSize(size, ItemStack.EMPTY);
         NbtCompound nbt = stack.getOrCreateNbt();
         if (nbt.contains("Items")) {
             Inventories.readNbt(nbt, this.items);
@@ -87,6 +89,11 @@ public class ItemInventory implements Inventory {
 
     @Override
     public boolean canPlayerUse(PlayerEntity player) {
+        return true;
+    }
+
+    @Override
+    public boolean canPlayerUse(Player player) {
         return true;
     }
 

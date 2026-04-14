@@ -1,15 +1,16 @@
 package pl.viko.itemalchemyaddon.item;
 
-import net.fabricmc.fabric.api.item.v1.FabricItemSettings;
-import net.fabricmc.fabric.api.itemgroup.v1.FabricItemGroup;
 import net.minecraft.item.Item;
-import net.minecraft.item.ItemGroup;
-import net.minecraft.item.ItemStack;
-import net.minecraft.registry.Registries;
-import net.minecraft.registry.Registry;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
-import pl.viko.itemalchemyaddon.ItemAlchemyAddon;
+import net.pitan76.mcpitanlib.api.item.CreativeTabBuilder;
+import net.pitan76.mcpitanlib.api.item.v2.CompatibleItemSettings;
+import net.pitan76.mcpitanlib.api.registry.result.RegistryResult;
+import net.pitan76.mcpitanlib.api.util.ItemStackUtil;
+import net.pitan76.mcpitanlib.api.util.TextUtil;
+
+import java.util.function.Supplier;
+
+import static pl.viko.itemalchemyaddon.ItemAlchemyAddon._id;
+import static pl.viko.itemalchemyaddon.ItemAlchemyAddon.registry;
 
 /**
  * Registers all custom items and the creative-mode item group for this mod.
@@ -17,20 +18,15 @@ import pl.viko.itemalchemyaddon.ItemAlchemyAddon;
 public class ModItems {
 
     /** The Alchemical Table Mk2 item (max stack size 1). */
-    public static final Item ALCHEMICAL_TABLE_MK2 = registerItem("alchemical_table_mk2",
-            new AlchemicalTableMk2Item(new FabricItemSettings().maxCount(1)));
+    public static RegistryResult<Item> ALCHEMICAL_TABLE_MK2;
 
     /** Creative-mode tab containing this mod's items. */
-    public static final ItemGroup ITEM_ALCHEMY_ADDON_GROUP = Registry.register(Registries.ITEM_GROUP,
-            new Identifier(ItemAlchemyAddon.MOD_ID, "item_alchemy_addon_group"),
-            FabricItemGroup.builder()
-                    .displayName(Text.translatable("itemgroup.itemalchemyaddon"))
-                    .icon(() -> new ItemStack(ALCHEMICAL_TABLE_MK2))
-                    .entries((displayContext, entries) -> entries.add(ALCHEMICAL_TABLE_MK2))
-                    .build());
+    public static final CreativeTabBuilder ITEM_ALCHEMY_ADDON_GROUP = CreativeTabBuilder.create(_id("item_alchemy_addon_group"))
+            .setDisplayName(TextUtil.translatable("itemgroup.itemalchemyaddon"))
+            .setIcon(() -> ItemStackUtil.create(ALCHEMICAL_TABLE_MK2.getOrNull()));
 
-    private static Item registerItem(String name, Item item) {
-        return Registry.register(Registries.ITEM, new Identifier(ItemAlchemyAddon.MOD_ID, name), item);
+    private static RegistryResult<Item> registerItem(String name, Supplier<Item> item) {
+        return registry.registerItem(_id(name), item);
     }
 
     /**
@@ -38,6 +34,9 @@ public class ModItems {
      * and therefore registers all items and the item group.
      */
     public static void registerModItems() {
-        // Intentionally empty — class loading performs the registration.
+        ALCHEMICAL_TABLE_MK2 = registerItem("alchemical_table_mk2",
+                () -> new AlchemicalTableMk2Item(new CompatibleItemSettings(_id("alchemical_table_mk2")).maxCount(1).addGroup(ITEM_ALCHEMY_ADDON_GROUP)));
+
+        registry.registerItemGroup(ITEM_ALCHEMY_ADDON_GROUP);
     }
 }
