@@ -1,6 +1,5 @@
 package pl.viko.itemalchemyaddon.screen;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.widget.TextFieldWidget;
@@ -482,13 +481,14 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
                 boolean isLearned = cachedLearnedIds.contains(itemId);
                 boolean hasEmc = EMCManager.get(stack.getItem()) > 0;
 
-                // Unlearned items with EMC: 50% transparency (no other effects)
-                if (hasEmc && !isLearned) {
-                    RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 0.5F);
-                }
                 args.drawObjectDM.getContext().drawItem(stack, itemX, itemY);
+
+                // Unlearned items with EMC: background-colored overlay to simulate transparency
                 if (hasEmc && !isLearned) {
-                    RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+                    args.drawObjectDM.getContext().getMatrices().push();
+                    args.drawObjectDM.getContext().getMatrices().translate(0, 0, 200);
+                    args.drawObjectDM.getContext().fill(itemX, itemY, itemX + 16, itemY + 16, 0x808B8B8B);
+                    args.drawObjectDM.getContext().getMatrices().pop();
                 }
 
                 // Items without EMC: small_cross overlay (in every filter mode)
