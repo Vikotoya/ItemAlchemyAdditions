@@ -53,7 +53,7 @@ public class RequestItemC2SPacket {
             long playerEmc = EMCManager.getEmcFromPlayer(mcpPlayer);
 
             switch (clickType) {
-                case 0 -> {
+                case 0 -> { // Left click — single item to cursor
                     ItemStack cursorStack = player.currentScreenHandler.getCursorStack();
                     if (playerEmc >= emcCost) {
                         if (cursorStack.isEmpty()) {
@@ -66,20 +66,32 @@ public class RequestItemC2SPacket {
                         }
                     }
                 }
-                case 1 -> {
+                case 1 -> { // Right click — single item to inventory
                     if (playerEmc >= emcCost) {
                         EMCManager.decrementEmc(mcpPlayer, emcCost);
                         player.getInventory().offerOrDrop(new ItemStack(requestedItem, 1));
                     }
                 }
-                case 2 -> {
-                    int maxAmount = Math.min(requestedItem.getMaxCount(), (int) (playerEmc / emcCost));
-                    if (maxAmount > 0 && player.currentScreenHandler.getCursorStack().isEmpty()) {
-                        EMCManager.decrementEmc(mcpPlayer, emcCost * maxAmount);
-                        player.currentScreenHandler.setCursorStack(new ItemStack(requestedItem, maxAmount));
+                case 2 -> { // Shift + Left click — fill stack to cursor
+                    ItemStack cursorStack = player.currentScreenHandler.getCursorStack();
+                    if (cursorStack.isEmpty()) {
+                        int maxAmount = Math.min(requestedItem.getMaxCount(), (int) (playerEmc / emcCost));
+                        if (maxAmount > 0) {
+                            EMCManager.decrementEmc(mcpPlayer, emcCost * maxAmount);
+                            player.currentScreenHandler.setCursorStack(new ItemStack(requestedItem, maxAmount));
+                        }
+                    } else if (cursorStack.getItem() == requestedItem) {
+                        int spaceLeft = requestedItem.getMaxCount() - cursorStack.getCount();
+                        if (spaceLeft > 0) {
+                            int buyAmount = Math.min(spaceLeft, (int) (playerEmc / emcCost));
+                            if (buyAmount > 0) {
+                                EMCManager.decrementEmc(mcpPlayer, emcCost * buyAmount);
+                                cursorStack.increment(buyAmount);
+                            }
+                        }
                     }
                 }
-                case 3 -> {
+                case 3 -> { // Shift + Right click — full stack to inventory
                     int maxAmount = Math.min(requestedItem.getMaxCount(), (int) (playerEmc / emcCost));
                     if (maxAmount > 0) {
                         EMCManager.decrementEmc(mcpPlayer, emcCost * maxAmount);

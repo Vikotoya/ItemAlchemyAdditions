@@ -11,6 +11,7 @@ import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemGroup;
 import net.minecraft.item.ItemGroups;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.network.PacketByteBuf;
 import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
@@ -30,9 +31,6 @@ import java.util.*;
 
 /**
  * Client-side screen for the Alchemical Table Mk2.
- *
- * <p>Operates in two modes ({@link GuiMode#BURNING} and {@link GuiMode#UNLEARNING}),
- * synchronised from the server via the screen handler's property delegate.</p>
  */
 public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2ScreenHandler> {
 
@@ -82,6 +80,7 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
             "textures/gui/alchemical_table_mk2_gui.png");
 
     private static final Identifier BURN_SLOT_TEX = widgetTex("burn_slot");
+    private static final Identifier BURN_SLOT_HOVER_TEX = widgetTex("burn_slot_hovered");
     private static final Identifier TOGGLE_UNLEARN_TEX = widgetTex("toggle_unlearn_mode");
     private static final Identifier TOGGLE_UNLEARN_HOVER_TEX = widgetTex("toggle_unlearn_mode_hovered");
     private static final Identifier TOGGLE_LEARN_ON_TEX = widgetTex("toggle_learn_on");
@@ -100,6 +99,9 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
     private static final Identifier TAB_SCROLL_LEFT_HOVER_TEX = widgetTex("tab_scroll_left_hovered");
     private static final Identifier TAB_SCROLL_RIGHT_TEX = widgetTex("tab_scroll_right");
     private static final Identifier TAB_SCROLL_RIGHT_HOVER_TEX = widgetTex("tab_scroll_right_hovered");
+
+    private static final Identifier SLIDER_TEX = widgetTex("slider");
+    private static final Identifier SLIDER_HOVER_TEX = widgetTex("slider_hovered");
 
     private static Identifier widgetTex(String name) {
         return new Identifier(ItemAlchemyAddon.MOD_ID, "textures/gui/widgets/" + name + ".png");
@@ -135,10 +137,20 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
     private static final int TAB_SCROLL_RIGHT_X = 204, TAB_SCROLL_RIGHT_Y = -23;
     private static final int TAB_SCROLL_W = 11, TAB_SCROLL_H = 20;
 
+    // ── Scrollbar constants ──────────────────────────────────────────────
+
+    private static final int SLIDER_X = 196;
+    private static final int SLIDER_TOP_Y = 33;
+    private static final int SLIDER_BOTTOM_Y = 124;
+    private static final int SLIDER_W = 12, SLIDER_H = 15;
+
     // ── Search bar constants ─────────────────────────────────────────────
 
-    private static final int SEARCH_X = 42, SEARCH_Y = 18;
-    private static final int SEARCH_W = 188, SEARCH_H = 12;
+    private static final int SEARCH_TEXT_X = 42, SEARCH_TEXT_Y = 18;
+    private static final int SEARCH_TEXT_W = 146;
+    private static final int SEARCH_TEXT_H = 12;
+    private static final int SEARCH_CLICK_X = 29, SEARCH_CLICK_Y = 15;
+    private static final int SEARCH_CLICK_W = 161, SEARCH_CLICK_H = 12;
     private static final int SEARCH_MAX_LENGTH = 40;
 
     /** Number of item columns in the transmutation grid. */
@@ -149,6 +161,7 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
     private List<ItemStack> itemsToShow = new ArrayList<>();
     private float scrollOffset;
     private boolean isDragging;
+    private float sliderGrabOffset;
     private int listX, listY, listWidth, listHeight;
 
     private final List<ItemGroup> itemGroups = new ArrayList<>();
@@ -186,9 +199,14 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
 
         this.itemGroups.clear();
         for (ItemGroup group : ItemGroups.getGroups()) {
-            if (group.getType() != ItemGroup.Type.HOTBAR) {
-                this.itemGroups.add(group);
+            ItemGroup.Type type = group.getType();
+            if (type == ItemGroup.Type.HOTBAR || type == ItemGroup.Type.INVENTORY) {
+                continue;
             }
+            if (type == ItemGroup.Type.CATEGORY && group.getIcon().getItem() == Items.COMMAND_BLOCK) {
+                continue;
+            }
+            this.itemGroups.add(group);
         }
 
         ItemGroup searchGroup = null;
@@ -206,7 +224,8 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         this.tabScrollIndex = 0;
 
         this.searchField = new TextFieldWidget(this.textRenderer,
-                this.x + SEARCH_X, this.y + SEARCH_Y, SEARCH_W, SEARCH_H, Text.empty());
+                this.x + SEARCH_TEXT_X, this.y + SEARCH_TEXT_Y,
+                SEARCH_TEXT_W, SEARCH_TEXT_H, Text.empty());
         this.searchField.setMaxLength(SEARCH_MAX_LENGTH);
         this.searchField.setDrawsBackground(false);
         this.searchField.setEditableColor(0xFFFFFF);
@@ -214,7 +233,6 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
             this.scrollOffset = 0;
             updateItemsBasedOnTab();
         });
-        this.addDrawableChild(this.searchField);
 
         refreshLearnedIds();
         updateItemsBasedOnTab();
@@ -332,7 +350,7 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         int guiX = (width - backgroundWidth) / 2;
         int guiY = (height - backgroundHeight) / 2;
 
-        // ── Inactive tabs (drawn before GUI so it covers their bottom edge) ──
+        // ── Inactive tabs (behind GUI edge) ──
         for (int slot = 0; slot < MAX_VISIBLE_TABS && tabScrollIndex + slot < itemGroups.size(); slot++) {
             int tabIndex = tabScrollIndex + slot;
             if (tabIndex != selectedItemGroupIndex) {
@@ -380,7 +398,7 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
                     0, 0, TAB_SCROLL_W, TAB_SCROLL_H, TAB_SCROLL_W, TAB_SCROLL_H);
         }
 
-        // ── Persistent widgets (both modes) with hover ──
+        // ── Persistent widgets with hover ──
         boolean filterHover = isInside(mouseX, mouseY, guiX + FILTER_X, guiY + FILTER_Y, WIDGET_SIZE, WIDGET_SIZE);
         context.drawTexture(filterHover ? currentFilterMode.hoveredTexture : currentFilterMode.texture,
                 guiX + FILTER_X, guiY + FILTER_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
@@ -395,7 +413,8 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
 
         // ── Mode-specific widgets ──
         if (getMode() == GuiMode.BURNING) {
-            context.drawTexture(BURN_SLOT_TEX,
+            boolean burnHover = isInside(mouseX, mouseY, guiX + BURN_SLOT_X, guiY + BURN_SLOT_Y, WIDGET_SIZE, WIDGET_SIZE);
+            context.drawTexture(burnHover ? BURN_SLOT_HOVER_TEX : BURN_SLOT_TEX,
                     guiX + BURN_SLOT_X, guiY + BURN_SLOT_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
 
             Identifier learnTex = this.handler.isLearnEnabled() ? TOGGLE_LEARN_ON_TEX : TOGGLE_LEARN_OFF_TEX;
@@ -420,7 +439,8 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Detect mode transitions for cleanup
+        this.renderBackground(context);
+
         GuiMode currentMode = getMode();
         if (currentMode != previousMode) {
             if (previousMode == GuiMode.UNLEARNING) {
@@ -431,13 +451,17 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
             previousMode = currentMode;
         }
 
-        // Periodically refresh learned-items cache (~every second)
         if (this.client != null && this.client.player != null && this.client.player.age % 20 == 0) {
             refreshLearnedIds();
             updateItemsBasedOnTab();
         }
 
         super.render(context, mouseX, mouseY, delta);
+
+        // ── Search field (rendered manually, not via addDrawableChild) ──
+        if (this.searchField != null) {
+            this.searchField.render(context, mouseX, mouseY, delta);
+        }
 
         // ── Item grid ──
         ItemStack hoveredStack = null;
@@ -461,7 +485,6 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
                     context.fill(itemX, itemY, itemX + 16, itemY + 16, 0x80101010);
                 }
 
-                // Cross icon for unlearning selection — z-pushed above items
                 if (getMode() == GuiMode.UNLEARNING && unlearnSelection.contains(itemId)) {
                     context.getMatrices().push();
                     context.getMatrices().translate(0, 0, 200);
@@ -478,20 +501,36 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         }
         context.disableScissor();
 
-        // ── Item scrollbar ──
-        int scrollbarX = listX + listWidth + 3;
-        int scrollbarY = listY;
-        int scrollbarHeight = listHeight;
-        context.fill(scrollbarX, scrollbarY, scrollbarX + 6, scrollbarY + scrollbarHeight, 0xFF808080);
+        // ── Custom scrollbar ──
         int maxScroll = Math.max(0, (itemsToShow.size() + ROW_COUNT - 1) / ROW_COUNT * 18 - listHeight);
+        int guiX = this.x;
+        int guiY = this.y;
+        int sliderRange = SLIDER_BOTTOM_Y - SLIDER_TOP_Y;
+        int sliderY;
         if (maxScroll > 0) {
-            int handleHeight = (int) ((float) scrollbarHeight / (scrollbarHeight + maxScroll) * scrollbarHeight);
-            handleHeight = MathHelper.clamp(handleHeight, 8, scrollbarHeight);
-            int handleY = scrollbarY + (int) (this.scrollOffset / maxScroll * (scrollbarHeight - handleHeight));
-            context.fill(scrollbarX, handleY, scrollbarX + 6, handleY + handleHeight, 0xFFC0C0C0);
+            sliderY = SLIDER_TOP_Y + (int) (this.scrollOffset / maxScroll * sliderRange);
+        } else {
+            sliderY = SLIDER_TOP_Y;
+        }
+        context.drawTexture(isDragging ? SLIDER_HOVER_TEX : SLIDER_TEX,
+                guiX + SLIDER_X, guiY + sliderY, 0, 0, SLIDER_W, SLIDER_H, SLIDER_W, SLIDER_H);
+
+        // ── Tab tooltip ──
+        for (int slot = 0; slot < MAX_VISIBLE_TABS && tabScrollIndex + slot < itemGroups.size(); slot++) {
+            int tabPixelX = guiX + TAB_X_OFFSETS[slot];
+            int tabPixelY = guiY + TAB_Y_OFFSET;
+            if (isInside(mouseX, mouseY, tabPixelX, tabPixelY, TAB_W, TAB_H)) {
+                int tabIndex = tabScrollIndex + slot;
+                ItemGroup group = this.itemGroups.get(tabIndex);
+                Text tabName = (group.getType() == ItemGroup.Type.SEARCH)
+                        ? Text.literal("All Items")
+                        : group.getDisplayName();
+                context.drawTooltip(this.textRenderer, List.of(tabName), mouseX, mouseY);
+                break;
+            }
         }
 
-        // ── Tooltips ──
+        // ── Item tooltip ──
         drawMouseoverTooltip(context, mouseX, mouseY);
         if (hoveredStack != null) {
             context.drawTooltip(this.textRenderer, getTooltipFromItem(this.client, hoveredStack), mouseX, mouseY);
@@ -503,7 +542,7 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
         if (searchField != null && searchField.isFocused()) {
-            if (keyCode == 256) { // GLFW_KEY_ESCAPE
+            if (keyCode == 256) {
                 searchField.setFocused(false);
                 return true;
             }
@@ -523,7 +562,6 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
-        // Tab area scrolling (integer steps)
         if (mouseY >= this.y + TAB_Y_OFFSET && mouseY < this.y + TAB_Y_OFFSET + TAB_H) {
             int maxTabScroll = Math.max(0, itemGroups.size() - MAX_VISIBLE_TABS);
             if (maxTabScroll > 0) {
@@ -533,7 +571,6 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
             return true;
         }
 
-        // Item list scrolling
         int maxScroll = Math.max(0, (itemsToShow.size() + ROW_COUNT - 1) / ROW_COUNT * 18 - listHeight);
         this.scrollOffset = (float) MathHelper.clamp(this.scrollOffset - amount * 10, 0, maxScroll);
         return true;
@@ -544,19 +581,30 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         int guiX = this.x;
         int guiY = this.y;
 
+        // Always defocus search field first; refocus only if clicking its activation area
+        if (searchField != null) {
+            searchField.setFocused(false);
+        }
+
+        // ── Search bar activation area ──
+        if (isInside(mouseX, mouseY,
+                guiX + SEARCH_CLICK_X, guiY + SEARCH_CLICK_Y,
+                SEARCH_CLICK_W, SEARCH_CLICK_H)) {
+            if (searchField != null) {
+                searchField.setFocused(true);
+            }
+            return true;
+        }
+
         // ── Tab scroll arrows ──
         if (itemGroups.size() > MAX_VISIBLE_TABS) {
             if (isInside(mouseX, mouseY, guiX + TAB_SCROLL_LEFT_X, guiY + TAB_SCROLL_LEFT_Y, TAB_SCROLL_W, TAB_SCROLL_H)) {
-                if (tabScrollIndex > 0) {
-                    tabScrollIndex--;
-                }
+                if (tabScrollIndex > 0) tabScrollIndex--;
                 return true;
             }
             if (isInside(mouseX, mouseY, guiX + TAB_SCROLL_RIGHT_X, guiY + TAB_SCROLL_RIGHT_Y, TAB_SCROLL_W, TAB_SCROLL_H)) {
                 int maxTabScroll = Math.max(0, itemGroups.size() - MAX_VISIBLE_TABS);
-                if (tabScrollIndex < maxTabScroll) {
-                    tabScrollIndex++;
-                }
+                if (tabScrollIndex < maxTabScroll) tabScrollIndex++;
                 return true;
             }
         }
@@ -576,7 +624,7 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
             }
         }
 
-        // ── Persistent buttons (both modes) ──
+        // ── Persistent buttons ──
 
         if (isInside(mouseX, mouseY, guiX + FILTER_X, guiY + FILTER_Y, WIDGET_SIZE, WIDGET_SIZE)) {
             this.currentFilterMode = this.currentFilterMode.next();
@@ -642,9 +690,18 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
             }
         }
 
-        // ── Item scrollbar drag ──
-        int scrollbarX = listX + listWidth + 3;
-        if (mouseX >= scrollbarX && mouseX < scrollbarX + 6 && mouseY >= listY && mouseY < listY + listHeight) {
+        // ── Custom scrollbar drag ──
+        int sliderRange = SLIDER_BOTTOM_Y - SLIDER_TOP_Y;
+        if (isInside(mouseX, mouseY, guiX + SLIDER_X, guiY + SLIDER_TOP_Y, SLIDER_W, sliderRange + SLIDER_H)) {
+            int maxScrl = Math.max(1, (itemsToShow.size() + ROW_COUNT - 1) / ROW_COUNT * 18 - listHeight);
+            int currentSliderY = guiY + SLIDER_TOP_Y + (maxScrl > 0
+                    ? (int) (this.scrollOffset / maxScrl * sliderRange) : 0);
+            if (mouseY >= currentSliderY && mouseY < currentSliderY + SLIDER_H) {
+                this.sliderGrabOffset = (float) (mouseY - currentSliderY);
+            } else {
+                this.sliderGrabOffset = SLIDER_H / 2.0f;
+                updateScrollFromMouse(mouseY);
+            }
             this.isDragging = true;
             return true;
         }
@@ -701,11 +758,7 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
         }
 
         if (this.isDragging) {
-            int maxScroll = Math.max(0, (itemsToShow.size() + ROW_COUNT - 1) / ROW_COUNT * 18 - listHeight);
-            if (maxScroll > 0) {
-                float scrollPercentage = (float) ((mouseY - listY) / listHeight);
-                this.scrollOffset = MathHelper.clamp(scrollPercentage * maxScroll, 0, maxScroll);
-            }
+            updateScrollFromMouse(mouseY);
             return true;
         }
 
@@ -725,6 +778,13 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
 
     private static boolean isInside(double mx, double my, int x, int y, int w, int h) {
         return mx >= x && mx < x + w && my >= y && my < y + h;
+    }
+
+    private void updateScrollFromMouse(double mouseY) {
+        int maxScroll = Math.max(1, (itemsToShow.size() + ROW_COUNT - 1) / ROW_COUNT * 18 - listHeight);
+        float sliderTop = (float) (mouseY - sliderGrabOffset - this.y - SLIDER_TOP_Y);
+        float scrollRange = SLIDER_BOTTOM_Y - SLIDER_TOP_Y;
+        this.scrollOffset = MathHelper.clamp(sliderTop / scrollRange * maxScroll, 0, maxScroll);
     }
 
     private void sendUnlearnPacket() {
