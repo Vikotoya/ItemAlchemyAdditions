@@ -34,9 +34,8 @@ public class ModItems {
      * and therefore registers all items and the item group.
      */
     public static void registerModItems() {
+        registry.registerItemGroup(ITEM_ALCHEMY_ADDON_GROUP);
         ALCHEMICAL_TABLE_MK2 = registerItem("alchemical_table_mk2",
                 () -> new AlchemicalTableMk2Item(new CompatibleItemSettings(_id("alchemical_table_mk2")).maxCount(1).addGroup(ITEM_ALCHEMY_ADDON_GROUP)));
-
-        registry.registerItemGroup(ITEM_ALCHEMY_ADDON_GROUP);
     }
 }
