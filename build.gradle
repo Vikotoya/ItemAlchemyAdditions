@@ -1,5 +1,5 @@
 plugins {
-    id "fabric-loom" version "1.10-SNAPSHOT"
+    id "fabric-loom" version "1.15-SNAPSHOT"
     id 'maven-publish'
 }
 
@@ -43,8 +43,12 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
-    modImplementation(include( "net.pitan76:mcpitanlib-fabric-${project.mcpitanlib_version}"))
-    modImplementation(include( "net.pitan76:itemalchemy:${project.itemalchemy_version}"))
+    modImplementation "net.pitan76:mcpitanlib-fabric-${project.mcpitanlib_version}"
+    include "net.pitan76:mcpitanlib-fabric-${project.mcpitanlib_version}"
+    modImplementation("net.pitan76:itemalchemy:${project.itemalchemy_version}") {
+        exclude group: "net.pitan76", module: "mcpitanlib-fabric"
+    }
+    include "net.pitan76:itemalchemy:${project.itemalchemy_version}"
 }
 
 processResources {
