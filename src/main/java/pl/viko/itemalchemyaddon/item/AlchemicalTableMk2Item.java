@@ -10,6 +10,8 @@ import net.minecraft.text.Text;
 import net.minecraft.util.Hand;
 import net.minecraft.util.TypedActionResult;
 import net.minecraft.world.World;
+import net.pitan76.mcpitanlib.api.item.v2.CompatItem;
+import net.pitan76.mcpitanlib.api.item.v2.CompatibleItemSettings;
 import org.jetbrains.annotations.Nullable;
 import pl.viko.itemalchemyaddon.screen.AlchemicalTableMk2ScreenHandler;
 
@@ -21,9 +23,9 @@ import pl.viko.itemalchemyaddon.screen.AlchemicalTableMk2ScreenHandler;
  * handler has no backing inventory — the burn zone is virtual and items are
  * converted to EMC immediately on interaction.</p>
  */
-public class AlchemicalTableMk2Item extends Item implements NamedScreenHandlerFactory {
+public class AlchemicalTableMk2Item extends CompatItem implements NamedScreenHandlerFactory {
 
-    public AlchemicalTableMk2Item(Settings settings) {
+    public AlchemicalTableMk2Item(CompatibleItemSettings settings) {
         super(settings);
     }
 
