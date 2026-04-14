@@ -92,6 +92,7 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
     private static final Identifier DENY_TEX = widgetTex("deny");
     private static final Identifier DENY_HOVER_TEX = widgetTex("deny_hovered");
     private static final Identifier CROSS_ICON_TEX = widgetTex("cross_icon");
+    private static final Identifier SMALL_CROSS_TEX = widgetTex("small_cross");
 
     private static final Identifier TAB_ACTIVE_TEX = widgetTex("tab_active");
     private static final Identifier TAB_INACTIVE_TEX = widgetTex("tab_inactive");
@@ -476,13 +477,22 @@ public class AlchemicalTableMk2Screen extends HandledScreen<AlchemicalTableMk2Sc
                 boolean isLearned = cachedLearnedIds.contains(itemId);
                 boolean hasEmc = EMCManager.get(stack.getItem()) > 0;
 
+                boolean dimItem = !isLearned
+                        && (currentFilterMode == FilterMode.UNKNOWN || currentFilterMode == FilterMode.ALL);
+                if (dimItem) {
+                    RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 0.5F);
+                }
                 context.drawItem(stack, itemX, itemY);
+                if (dimItem) {
+                    RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+                }
 
                 if (currentFilterMode == FilterMode.ALL && !hasEmc) {
-                    context.fill(itemX, itemY, itemX + 16, itemY + 16, 0x40FF0000);
-                }
-                if (!isLearned && (currentFilterMode == FilterMode.UNKNOWN || currentFilterMode == FilterMode.ALL)) {
-                    context.fill(itemX, itemY, itemX + 16, itemY + 16, 0x80101010);
+                    context.getMatrices().push();
+                    context.getMatrices().translate(0, 0, 200);
+                    context.drawTexture(SMALL_CROSS_TEX,
+                            itemX, itemY, 0, 0, 16, 16, 16, 16);
+                    context.getMatrices().pop();
                 }
 
                 if (getMode() == GuiMode.UNLEARNING && unlearnSelection.contains(itemId)) {
