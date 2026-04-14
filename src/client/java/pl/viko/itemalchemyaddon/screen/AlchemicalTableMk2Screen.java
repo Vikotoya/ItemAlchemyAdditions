@@ -189,8 +189,8 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
 
     public AlchemicalTableMk2Screen(AlchemicalTableMk2ScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
-        this.backgroundWidth = 216;
-        this.backgroundHeight = 252;
+        setBackgroundWidth(216);
+        setBackgroundHeight(252);
     }
 
     // ── Lifecycle ────────────────────────────────────────────────────────

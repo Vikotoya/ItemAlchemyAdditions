@@ -70,14 +70,8 @@ public class AlchemicalTableMk2ScreenHandler extends SimpleScreenHandler {
 
         propertyDelegate.set(PROPERTY_LEARN_ENABLED, 1);
 
-        for (int row = 0; row < 3; ++row) {
-            for (int col = 0; col < 9; ++col) {
-                this.callAddSlot(new Slot(playerInventory, col + row * 9 + 9, 30 + col * 18, 170 + row * 18));
-            }
-        }
-        for (int col = 0; col < 9; ++col) {
-            this.callAddSlot(new Slot(playerInventory, col, 30 + col * 18, 228));
-        }
+        addPlayerMainInventorySlots(playerInventory, 30, 170);
+        addPlayerHotbarSlots(playerInventory, 30, 228);
     }
 
     // ── Property accessors ───────────────────────────────────────────────
@@ -112,7 +106,7 @@ public class AlchemicalTableMk2ScreenHandler extends SimpleScreenHandler {
      */
     @Override
     public void sendContentUpdates() {
-        if (!player.getWorld().isClient()) {
+        if (!player.isClient()) {
             long emc = EMCManager.getEmcFromPlayer(player);
             propertyDelegate.set(PROPERTY_EMC_LOW, (int) emc);
             propertyDelegate.set(PROPERTY_EMC_HIGH, (int) (emc >>> 32));
