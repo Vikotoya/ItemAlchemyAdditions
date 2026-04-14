@@ -129,7 +129,8 @@ public class AlchemicalTableMk2ScreenHandler extends SimpleScreenHandler {
 
         int slotIndex = e.getSlot();
 
-        if (e.isQuickCraftAction() && slotIndex >= 0 && slotIndex < ScreenHandlerUtil.getSlots(this).size()) {
+        // Shift-click from inventory = QUICK_MOVE (not QUICK_CRAFT, which is recipe drag-spread).
+        if (e.isQuickMoveAction() && slotIndex >= 0 && slotIndex < ScreenHandlerUtil.getSlots(this).size()) {
             Slot slot = ScreenHandlerUtil.getSlot(this, slotIndex);
             if (slot != null && SlotUtil.hasStack(slot)) {
                 ItemStack stack = SlotUtil.getStack(slot);
@@ -144,9 +145,9 @@ public class AlchemicalTableMk2ScreenHandler extends SimpleScreenHandler {
                         SlotUtil.setStack(slot, ItemStack.EMPTY);
                     }
                     SlotUtil.markDirty(slot);
+                    return;
                 }
             }
-            return;
         }
 
         super.onSlotClick(e);
@@ -181,7 +182,9 @@ public class AlchemicalTableMk2ScreenHandler extends SimpleScreenHandler {
 
     @Override
     public ItemStack quickMoveOverride(Player player, int index) {
-        return ItemStackUtil.empty();
+        // Must delegate to SimpleScreenHandler so shift-click moves stacks between hotbar and main inv.
+        // Shift-burn is handled earlier in onSlotClick (QUICK_MOVE + EMC) before quickMove runs.
+        return super.quickMoveOverride(player, index);
     }
 
     // ── Private helpers ──────────────────────────────────────────────────

@@ -181,7 +181,8 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
     private boolean isDragSelecting;
     private GuiMode previousMode = GuiMode.BURNING;
 
-    private List<String> cachedLearnedIds = new ArrayList<>();
+    /** Copy of team learned item ids (never alias TeamState's mutable list). */
+    private final Set<String> cachedLearnedIds = new HashSet<>();
 
     private TextFieldWidget searchField;
 
@@ -264,12 +265,11 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
     // ── Data helpers ─────────────────────────────────────────────────────
 
     private void refreshLearnedIds() {
+        cachedLearnedIds.clear();
         if (ItemAlchemyClient.itemAlchemyNbt != null) {
             TeamState teamState = new TeamState();
             teamState.readNbt(ItemAlchemyClient.itemAlchemyNbt.getCompound("team"));
-            cachedLearnedIds = teamState.registeredItems;
-        } else {
-            cachedLearnedIds = new ArrayList<>();
+            cachedLearnedIds.addAll(teamState.registeredItems);
         }
     }
 
@@ -331,9 +331,9 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         switch (currentSortMode) {
             case ABC -> filteredItems.sort(Comparator.comparing(s -> s.getName().getString()));
             case EMC_DESC -> filteredItems.sort(
-                    Comparator.comparingLong((ItemStack s) -> EMCManager.get(s.getItem())).reversed());
+                    Comparator.comparingLong((ItemStack s) -> Math.max(0, EMCManager.get(s.getItem()))).reversed());
             case EMC_ASC -> filteredItems.sort(
-                    Comparator.comparingLong(s -> EMCManager.get(s.getItem())));
+                    Comparator.comparingLong(s -> Math.max(0, EMCManager.get(s.getItem()))));
             case ID -> { /* preserve natural ordering */ }
         }
 
@@ -482,17 +482,17 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
                 boolean isLearned = cachedLearnedIds.contains(itemId);
                 boolean hasEmc = EMCManager.get(stack.getItem()) > 0;
 
-                boolean dimItem = !isLearned
-                        && (currentFilterMode == FilterMode.UNKNOWN || currentFilterMode == FilterMode.ALL);
-                if (dimItem) {
+                // Unlearned items with EMC: 50% transparency (no other effects)
+                if (hasEmc && !isLearned) {
                     RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 0.5F);
                 }
                 args.drawObjectDM.getContext().drawItem(stack, itemX, itemY);
-                if (dimItem) {
+                if (hasEmc && !isLearned) {
                     RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
                 }
 
-                if (currentFilterMode == FilterMode.ALL && !hasEmc) {
+                // Items without EMC: small_cross overlay (in every filter mode)
+                if (!hasEmc) {
                     args.drawObjectDM.getContext().getMatrices().push();
                     args.drawObjectDM.getContext().getMatrices().translate(0, 0, 200);
                     RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, SMALL_CROSS_TEX,
