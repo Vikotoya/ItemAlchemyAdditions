@@ -1,0 +1,15 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "A",
+    "B"
+  ],
+  "key": {
+    "A": { "item": "itemalchemy:alchemy_table" },
+    "B": { "item": "minecraft:writable_book" }
+  },
+  "result": {
+    "item": "itemalchemyaddon:alchemical_table_mk2",
+    "count": 1
+  }
+}
