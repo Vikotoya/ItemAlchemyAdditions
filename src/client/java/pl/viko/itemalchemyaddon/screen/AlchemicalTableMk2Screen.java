@@ -1,14 +1,11 @@
 package pl.viko.itemalchemyaddon.screen;
 
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemGroup;
 import net.minecraft.item.ItemGroups;
 import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.network.PacketByteBuf;
-import net.minecraft.registry.Registries;
+import net.minecraft.screen.slot.Slot;
 import net.minecraft.text.Text;
 
 import net.minecraft.util.math.MathHelper;
@@ -25,6 +22,7 @@ import net.pitan76.mcpitanlib.api.util.TextUtil;
 import net.pitan76.mcpitanlib.api.util.client.ClientUtil;
 import net.pitan76.mcpitanlib.api.util.client.RenderUtil;
 import net.pitan76.mcpitanlib.api.util.item.ItemUtil;
+import net.pitan76.mcpitanlib.midohra.item.MCItems;
 import net.pitan76.mcpitanlib.midohra.nbt.NbtCompound;
 import net.pitan76.mcpitanlib.midohra.network.CompatPacketByteBuf;
 import org.jetbrains.annotations.Nullable;
@@ -34,6 +32,7 @@ import pl.viko.itemalchemyaddon.screen.AlchemicalTableMk2ScreenHandler.GuiMode;
 
 import java.text.NumberFormat;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Client-side screen for the Alchemical Table Mk2.
@@ -85,6 +84,9 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
     private static final CompatIdentifier TEXTURE = CompatIdentifier.of(ItemAlchemyAddon.MOD_ID,
             "textures/gui/alchemical_table_mk2_gui.png");
 
+    private static final CompatIdentifier TEXTURE_200 = CompatIdentifier.of(ItemAlchemyAddon.MOD_ID,
+            "textures/gui/alchemical_table_mk2_gui-200.png");
+
     private static final CompatIdentifier BURN_SLOT_TEX = widgetTex("burn_slot");
     private static final CompatIdentifier BURN_SLOT_HOVER_TEX = widgetTex("burn_slot_hovered");
     private static final CompatIdentifier TOGGLE_UNLEARN_TEX = widgetTex("toggle_unlearn_mode");
@@ -120,12 +122,18 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
 
     private static final int FILTER_X = 7, FILTER_Y = 32;
     private static final int SORT_X = 7, SORT_Y = 50;
-    private static final int UNLEARN_TOGGLE_X = 8, UNLEARN_TOGGLE_Y = 87;
 
-    private static final int BURN_SLOT_X = 7, BURN_SLOT_Y = 122;
-    private static final int LEARN_TOGGLE_X = 195, LEARN_TOGGLE_Y = 144;
+    private static final int UNLEARN_TOGGLE_X = 8;
+    private static int unlearn_toggle_y = 87;
+
+    private static final int BURN_SLOT_X = 7;
+    private static int burn_slot_y = 122;
+
+    private static int upper_gui_bottom = 144;
+
+    private static final int LEARN_TOGGLE_X = 195;
     private static final int LEARN_TOGGLE_W = 14, LEARN_TOGGLE_H = 9;
-    private static final int LEARN_TEXT_X = 163, LEARN_TEXT_Y = 144;
+    private static final int LEARN_TEXT_X = 163;
     private static final int LEARN_TEXT_W = 29, LEARN_TEXT_H = 7;
 
     private static final int CONFIRM_X = 8, CONFIRM_Y = 105;
@@ -195,6 +203,44 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         setBackgroundHeight(252);
     }
 
+    private List<Slot> copySlots;
+
+    @Override
+    public void fixScreen() {
+        super.fixScreen();
+
+        List<Slot> slots = handler.slots.stream().filter(slot -> slot.inventory instanceof PlayerInventory).collect(Collectors.toList());
+        if (copySlots == null)
+            copySlots = slots.stream().map(slot -> new Slot(slot.inventory, slot.getIndex(), slot.x, slot.y)).collect(Collectors.toList());
+
+        if (ClientUtil.getWindow().getScaledHeight() <= 300) {
+            setBackgroundHeight(200);
+            setY((this.height - this.getBackgroundHeight()) / 2 + 12);
+            unlearn_toggle_y = 67;
+            burn_slot_y = 84;
+            upper_gui_bottom = 144 - 52;
+            this.listHeight = 106 - 52;
+
+            for (Slot slot : slots) {
+                Slot original = copySlots.get(slots.indexOf(slot));
+                handler.slots.set(handler.slots.indexOf(slot), new Slot(slot.inventory, slot.getIndex(), slot.x, original.y - 52));
+            }
+
+        } else {
+            setBackgroundHeight(252);
+            setY((this.height - this.getBackgroundHeight()) / 2);
+            unlearn_toggle_y = 87;
+            burn_slot_y = 122;
+            upper_gui_bottom = 144;
+            this.listHeight = 106;
+
+            for (Slot slot : slots) {
+                Slot original = copySlots.get(slots.indexOf(slot));
+                handler.slots.set(handler.slots.indexOf(slot), new Slot(slot.inventory, slot.getIndex(), slot.x, original.y + 52));
+            }
+        }
+    }
+
     // ── Lifecycle ────────────────────────────────────────────────────────
 
     @Override
@@ -203,7 +249,11 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         this.listX = this.x + 30;
         this.listY = this.y + 33;
         this.listWidth = 162;
-        this.listHeight = 106;
+        if (ClientUtil.getWindow().getScaledHeight() <= 300) {
+            this.listHeight = 54;
+        } else {
+            this.listHeight = 106;
+        }
 
         this.itemGroups.clear();
         for (ItemGroup group : ItemGroups.getGroups()) {
@@ -211,7 +261,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
             if (type == ItemGroup.Type.HOTBAR || type == ItemGroup.Type.INVENTORY) {
                 continue;
             }
-            if (type == ItemGroup.Type.CATEGORY && group.getIcon().getItem() == Items.COMMAND_BLOCK) {
+            if (type == ItemGroup.Type.CATEGORY && group.getIcon().getItem() == MCItems.COMMAND_BLOCK.get()) {
                 continue;
             }
             this.itemGroups.add(group);
@@ -288,7 +338,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
 
         if (selectedGroup.getType() == ItemGroup.Type.SEARCH) {
             baseItems = new ArrayList<>();
-            Registries.ITEM.forEach(item -> baseItems.add(item.getDefaultStack()));
+            ItemUtil.getItems().forEach(item -> baseItems.add(item.getDefaultStack()));
         } else {
             baseItems = selectedGroup.getDisplayStacks();
         }
@@ -348,15 +398,15 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
     protected void drawForegroundOverride(DrawForegroundArgs args) {
         long currentEmc = this.handler.getClientEmc();
         String emcText = NumberFormat.getNumberInstance(Locale.US).format(currentEmc);
-        drawText(args.drawObjectDM, TextUtil.literal("EMC: " + emcText), 8, 144, 0x404040);
+        drawText(args.drawObjectDM, TextUtil.literal("EMC: " + emcText), ClientUtil.getWindow().getScaledHeight() <= 300 ? 26 : 8, upper_gui_bottom, 0x404040);
     }
 
     @Override
     public void drawBackgroundOverride(DrawBackgroundArgs args) {
         RenderUtil.setShaderToPositionTexProgram();
         RenderUtil.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-        int guiX = (width - backgroundWidth) / 2;
-        int guiY = (height - backgroundHeight) / 2;
+        int guiX = x;
+        int guiY = y;
 
         // ── Inactive tabs (behind GUI edge) ──
         for (int slot = 0; slot < MAX_VISIBLE_TABS && tabScrollIndex + slot < itemGroups.size(); slot++) {
@@ -369,8 +419,13 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         }
 
         // ── Main GUI texture ──
-        RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, TEXTURE, guiX, guiY, 0, 0, backgroundWidth, backgroundHeight,
+        if (this.client != null && this.client.getWindow().getScaledHeight() <= 300) {
+            RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, TEXTURE_200, guiX, guiY, 0, 0,
+                    backgroundWidth, backgroundHeight, backgroundWidth, backgroundHeight);
+        } else {
+            RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, TEXTURE, guiX, guiY, 0, 0, backgroundWidth, backgroundHeight,
                 backgroundWidth, backgroundHeight);
+            }
 
         // ── Active tab (on top of GUI edge) ──
         int activeSlot = selectedItemGroupIndex - tabScrollIndex;
@@ -415,24 +470,24 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, sortHover ? currentSortMode.hoveredTexture : currentSortMode.texture,
                 guiX + SORT_X, guiY + SORT_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
 
-        boolean unlearnHover = isInside(args.mouseX, args.mouseY, guiX + UNLEARN_TOGGLE_X, guiY + UNLEARN_TOGGLE_Y, WIDGET_SIZE, WIDGET_SIZE);
+        boolean unlearnHover = isInside(args.mouseX, args.mouseY, guiX + UNLEARN_TOGGLE_X, guiY + unlearn_toggle_y, WIDGET_SIZE, WIDGET_SIZE);
         RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, unlearnHover ? TOGGLE_UNLEARN_HOVER_TEX : TOGGLE_UNLEARN_TEX,
-                guiX + UNLEARN_TOGGLE_X, guiY + UNLEARN_TOGGLE_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
+                guiX + UNLEARN_TOGGLE_X, guiY + unlearn_toggle_y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
 
         // ── Mode-specific widgets ──
         if (getMode() == GuiMode.BURNING) {
-            boolean burnHover = isInside(args.mouseX, args.mouseY, guiX + BURN_SLOT_X, guiY + BURN_SLOT_Y, WIDGET_SIZE, WIDGET_SIZE);
+            boolean burnHover = isInside(args.mouseX, args.mouseY, guiX + BURN_SLOT_X, guiY + burn_slot_y, WIDGET_SIZE, WIDGET_SIZE);
             RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, burnHover ? BURN_SLOT_HOVER_TEX : BURN_SLOT_TEX,
-                    guiX + BURN_SLOT_X, guiY + BURN_SLOT_Y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
+                    guiX + BURN_SLOT_X, guiY + burn_slot_y, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
 
             CompatIdentifier learnTex = this.handler.isLearnEnabled() ? TOGGLE_LEARN_ON_TEX : TOGGLE_LEARN_OFF_TEX;
             RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, learnTex,
-                    guiX + LEARN_TOGGLE_X, guiY + LEARN_TOGGLE_Y, 0, 0,
+                    guiX + LEARN_TOGGLE_X, guiY + upper_gui_bottom, 0, 0,
                     LEARN_TOGGLE_W, LEARN_TOGGLE_H, LEARN_TOGGLE_W, LEARN_TOGGLE_H);
 
             CompatIdentifier textTex = this.handler.isLearnEnabled() ? TEXT_LEARN_ON_TEX : TEXT_LEARN_OFF_TEX;
             RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, textTex,
-                    guiX + LEARN_TEXT_X, guiY + LEARN_TEXT_Y, 0, 0,
+                    guiX + LEARN_TEXT_X, guiY + upper_gui_bottom, 0, 0,
                     LEARN_TEXT_W, LEARN_TEXT_H, LEARN_TEXT_W, LEARN_TEXT_H);
         } else {
             boolean confirmHover = isInside(args.mouseX, args.mouseY, guiX + CONFIRM_X, guiY + CONFIRM_Y, WIDGET_SIZE, WIDGET_SIZE);
@@ -661,7 +716,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
             return true;
         }
 
-        if (isInside(mouseX, mouseY, guiX + UNLEARN_TOGGLE_X, guiY + UNLEARN_TOGGLE_Y, WIDGET_SIZE, WIDGET_SIZE)) {
+        if (isInside(mouseX, mouseY, guiX + UNLEARN_TOGGLE_X, guiY + unlearn_toggle_y, WIDGET_SIZE, WIDGET_SIZE)) {
             if (getMode() == GuiMode.UNLEARNING) {
                 unlearnSelection.clear();
             }
@@ -675,7 +730,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         // ── BURNING mode buttons ──
 
         if (getMode() == GuiMode.BURNING) {
-            if (isInside(mouseX, mouseY, guiX + BURN_SLOT_X, guiY + BURN_SLOT_Y, WIDGET_SIZE, WIDGET_SIZE)) {
+            if (isInside(mouseX, mouseY, guiX + BURN_SLOT_X, guiY + burn_slot_y, WIDGET_SIZE, WIDGET_SIZE)) {
                 if (!this.handler.getCursorStack().isEmpty()) {
                     assert this.client != null && this.client.interactionManager != null;
                     int burnButton = (button == 0)
@@ -687,7 +742,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
                 }
             }
 
-            if (isInside(mouseX, mouseY, guiX + LEARN_TOGGLE_X, guiY + LEARN_TOGGLE_Y,
+            if (isInside(mouseX, mouseY, guiX + LEARN_TOGGLE_X, guiY + upper_gui_bottom,
                     LEARN_TOGGLE_W, LEARN_TOGGLE_H)) {
                 assert this.client != null && this.client.interactionManager != null;
                 this.client.interactionManager.clickButton(this.handler.syncId,
@@ -762,9 +817,9 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
                     else if (button == 1)                   clickType = 3;
                     else return super.mouseClicked(mouseX, mouseY, button);
 
-                    PacketByteBuf buf = PacketByteBufs.create();
-                    buf.writeItemStack(clickedStack);
-                    buf.writeInt(clickType);
+                    CompatPacketByteBuf buf = CompatPacketByteBuf.create();
+                    PacketByteUtil.writeItemStack(buf, clickedStack);
+                    PacketByteUtil.writeInt(buf, clickType);
                     ClientNetworking.send(ModMessages.REQUEST_ITEM_ID, buf);
                     return true;
                 }
