@@ -30,7 +30,7 @@ public class RequestItemC2SPacket {
         ItemStack requestedStack = PacketByteUtil.readItemStack(e.buf);
         int clickType = PacketByteUtil.readInt(e.buf);
 
-        e.server.execute(() -> {
+        e.execute(() -> {
             Player player = e.player;
             if (player.getCurrentScreenHandler() instanceof AlchemicalTableMk2ScreenHandler sh
                     && sh.getMode() != GuiMode.BURNING) {
@@ -41,7 +41,7 @@ public class RequestItemC2SPacket {
             long emcCost = EMCManager.get(requestedItem);
             if (emcCost <= 0) return;
 
-            Optional<TeamState> teamState = ModState.getModState(e.server)
+            Optional<TeamState> teamState = ModState.getModState(e.getMidohraServer())
                     .getTeamByPlayer(player.getUUID());
             if (teamState.isEmpty()
                     || !teamState.get().registeredItems.contains(ItemUtil.toId(requestedItem).toString())) {

@@ -1,7 +1,6 @@
 package pl.viko.itemalchemyaddon.screen;
 
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
-import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemGroup;
@@ -17,14 +16,15 @@ import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.itemalchemy.ItemAlchemyClient;
 import net.pitan76.itemalchemy.data.TeamState;
 import net.pitan76.mcpitanlib.api.client.gui.screen.SimpleHandledScreen;
-import net.pitan76.mcpitanlib.api.client.render.handledscreen.DrawBackgroundArgs;
-import net.pitan76.mcpitanlib.api.client.render.handledscreen.DrawMouseoverTooltipArgs;
-import net.pitan76.mcpitanlib.api.client.render.handledscreen.KeyEventArgs;
-import net.pitan76.mcpitanlib.api.client.render.handledscreen.RenderArgs;
+import net.pitan76.mcpitanlib.api.client.render.handledscreen.*;
+import net.pitan76.mcpitanlib.api.network.PacketByteUtil;
 import net.pitan76.mcpitanlib.api.network.v2.ClientNetworking;
 import net.pitan76.mcpitanlib.api.util.CompatIdentifier;
+import net.pitan76.mcpitanlib.api.util.TextUtil;
 import net.pitan76.mcpitanlib.api.util.client.RenderUtil;
 import net.pitan76.mcpitanlib.api.util.item.ItemUtil;
+import net.pitan76.mcpitanlib.midohra.nbt.NbtCompound;
+import net.pitan76.mcpitanlib.midohra.network.CompatPacketByteBuf;
 import org.jetbrains.annotations.Nullable;
 import pl.viko.itemalchemyaddon.ItemAlchemyAddon;
 import pl.viko.itemalchemyaddon.networking.ModMessages;
@@ -267,7 +267,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         cachedLearnedIds.clear();
         if (ItemAlchemyClient.itemAlchemyNbt != null) {
             TeamState teamState = new TeamState();
-            teamState.readNbt(ItemAlchemyClient.itemAlchemyNbt.getCompound("team"));
+            teamState.readNbt(NbtCompound.of(ItemAlchemyClient.itemAlchemyNbt).getCompound("team"));
             cachedLearnedIds.addAll(teamState.registeredItems);
         }
     }
@@ -341,11 +341,13 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
 
     // ── Rendering ────────────────────────────────────────────────────────
 
+
     @Override
-    protected void drawForeground(DrawContext context, int mouseX, int mouseY) {
+    protected void drawForegroundOverride(DrawForegroundArgs args) {
+        super.drawForegroundOverride(args);
         long currentEmc = this.handler.getClientEmc();
         String emcText = NumberFormat.getNumberInstance(Locale.US).format(currentEmc);
-        context.drawText(this.textRenderer, "EMC: " + emcText, 8, 144, 0x404040, false);
+        drawText(args.drawObjectDM, TextUtil.literal("EMC: " + emcText), 8, 144, 0x404040);
     }
 
     @Override
@@ -804,10 +806,10 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
 
     private void sendUnlearnPacket() {
         if (unlearnSelection.isEmpty()) return;
-        PacketByteBuf buf = PacketByteBufs.create();
-        buf.writeInt(unlearnSelection.size());
+        CompatPacketByteBuf buf = CompatPacketByteBuf.create();
+        PacketByteUtil.writeInt(buf, unlearnSelection.size());
         for (String id : unlearnSelection) {
-            buf.writeString(id);
+            PacketByteUtil.writeString(buf, id);
         }
         ClientNetworking.send(ModMessages.UNLEARN_ITEMS_ID, buf);
     }

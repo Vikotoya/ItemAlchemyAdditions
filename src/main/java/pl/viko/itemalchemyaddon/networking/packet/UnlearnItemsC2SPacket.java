@@ -32,7 +32,7 @@ public class UnlearnItemsC2SPacket {
             itemIds.add(PacketByteUtil.readString(e.buf));
         }
 
-        e.server.execute(() -> {
+        e.execute(() -> {
             Player player = e.player;
             if (!(player.getCurrentScreenHandler() instanceof AlchemicalTableMk2ScreenHandler screenHandler)) {
                 return;
@@ -41,11 +41,11 @@ public class UnlearnItemsC2SPacket {
                 return;
             }
 
-            Optional<TeamState> teamState = ModState.getModState(e.server)
+            Optional<TeamState> teamState = ModState.getModState(e.getMidohraServer())
                     .getTeamByPlayer(player.getUUID());
             if (teamState.isPresent()) {
                 teamState.get().registeredItems.removeAll(itemIds);
-                ServerState.of(e.server).callMarkDirty();
+                ServerState.of(e.getMidohraServer()).callMarkDirty();
             }
 
             screenHandler.setMode(GuiMode.BURNING);
