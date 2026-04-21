@@ -199,20 +199,38 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
 
     public AlchemicalTableMk2Screen(AlchemicalTableMk2ScreenHandler handler, PlayerInventory inventory, Text title) {
         super(handler, inventory, title);
+        rearchitectSlots();
         setBackgroundWidth(216);
         setBackgroundHeight(252);
     }
 
     private List<Slot> copySlots;
 
+    private void rearchitectSlots() {
+        if (handler != null) {
+            List<Slot> slots = handler.slots.stream().filter(slot -> slot.inventory instanceof PlayerInventory).collect(Collectors.toList());
+            if (copySlots == null)
+                copySlots = slots.stream().map(slot -> new Slot(slot.inventory, slot.getIndex(), slot.x, slot.y)).collect(Collectors.toList());
+
+            if (ClientUtil.getWindow().getScaledHeight() <= 300) {
+                for (Slot slot : slots) {
+                    Slot original = copySlots.get(slots.indexOf(slot));
+                    handler.slots.set(handler.slots.indexOf(slot), new Slot(slot.inventory, slot.getIndex(), slot.x, original.y - 52));
+                }
+            } else {
+                for (Slot slot : slots) {
+                    Slot original = copySlots.get(slots.indexOf(slot));
+                    handler.slots.set(handler.slots.indexOf(slot), new Slot(slot.inventory, slot.getIndex(), slot.x, original.y));
+                }
+            }
+        }
+    }
+
     @Override
     public void fixScreen() {
         super.fixScreen();
 
-        List<Slot> slots = handler.slots.stream().filter(slot -> slot.inventory instanceof PlayerInventory).collect(Collectors.toList());
-        if (copySlots == null)
-            copySlots = slots.stream().map(slot -> new Slot(slot.inventory, slot.getIndex(), slot.x, slot.y)).collect(Collectors.toList());
-
+        rearchitectSlots();
         if (ClientUtil.getWindow().getScaledHeight() <= 300) {
             setBackgroundHeight(200);
             setY((this.height - this.getBackgroundHeight()) / 2 + 12);
@@ -220,12 +238,6 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
             burn_slot_y = 84;
             upper_gui_bottom = 144 - 52;
             this.listHeight = 106 - 52;
-
-            for (Slot slot : slots) {
-                Slot original = copySlots.get(slots.indexOf(slot));
-                handler.slots.set(handler.slots.indexOf(slot), new Slot(slot.inventory, slot.getIndex(), slot.x, original.y - 52));
-            }
-
         } else {
             setBackgroundHeight(252);
             setY((this.height - this.getBackgroundHeight()) / 2);
@@ -233,11 +245,6 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
             burn_slot_y = 122;
             upper_gui_bottom = 144;
             this.listHeight = 106;
-
-            for (Slot slot : slots) {
-                Slot original = copySlots.get(slots.indexOf(slot));
-                handler.slots.set(handler.slots.indexOf(slot), new Slot(slot.inventory, slot.getIndex(), slot.x, original.y + 52));
-            }
         }
     }
 
