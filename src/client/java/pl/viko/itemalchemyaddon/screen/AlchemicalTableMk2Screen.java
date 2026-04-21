@@ -19,8 +19,10 @@ import net.pitan76.mcpitanlib.api.client.gui.screen.SimpleHandledScreen;
 import net.pitan76.mcpitanlib.api.client.render.handledscreen.*;
 import net.pitan76.mcpitanlib.api.network.PacketByteUtil;
 import net.pitan76.mcpitanlib.api.network.v2.ClientNetworking;
+import net.pitan76.mcpitanlib.api.sound.CompatSoundEvents;
 import net.pitan76.mcpitanlib.api.util.CompatIdentifier;
 import net.pitan76.mcpitanlib.api.util.TextUtil;
+import net.pitan76.mcpitanlib.api.util.client.ClientUtil;
 import net.pitan76.mcpitanlib.api.util.client.RenderUtil;
 import net.pitan76.mcpitanlib.api.util.item.ItemUtil;
 import net.pitan76.mcpitanlib.midohra.nbt.NbtCompound;
@@ -617,11 +619,13 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         if (itemGroups.size() > MAX_VISIBLE_TABS) {
             if (isInside(mouseX, mouseY, guiX + TAB_SCROLL_LEFT_X, guiY + TAB_SCROLL_LEFT_Y, TAB_SCROLL_W, TAB_SCROLL_H)) {
                 if (tabScrollIndex > 0) tabScrollIndex--;
+                ClientUtil.getPlayer().playSound(CompatSoundEvents.UI_BUTTON_CLICK, 1.0f, 1.0f);
                 return true;
             }
             if (isInside(mouseX, mouseY, guiX + TAB_SCROLL_RIGHT_X, guiY + TAB_SCROLL_RIGHT_Y, TAB_SCROLL_W, TAB_SCROLL_H)) {
                 int maxTabScroll = Math.max(0, itemGroups.size() - MAX_VISIBLE_TABS);
                 if (tabScrollIndex < maxTabScroll) tabScrollIndex++;
+                ClientUtil.getPlayer().playSound(CompatSoundEvents.UI_BUTTON_CLICK, 1.0f, 1.0f);
                 return true;
             }
         }
@@ -647,12 +651,14 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
             this.currentFilterMode = this.currentFilterMode.next();
             this.scrollOffset = 0;
             updateItemsBasedOnTab();
+            ClientUtil.getPlayer().playSound(CompatSoundEvents.UI_BUTTON_CLICK, 1.0f, 1.0f);
             return true;
         }
 
         if (isInside(mouseX, mouseY, guiX + SORT_X, guiY + SORT_Y, WIDGET_SIZE, WIDGET_SIZE)) {
             this.currentSortMode = this.currentSortMode.next();
             updateItemsBasedOnTab();
+            ClientUtil.getPlayer().playSound(CompatSoundEvents.UI_BUTTON_CLICK, 1.0f, 1.0f);
             return true;
         }
 
@@ -663,6 +669,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
             assert this.client != null && this.client.interactionManager != null;
             this.client.interactionManager.clickButton(this.handler.syncId,
                     AlchemicalTableMk2ScreenHandler.BUTTON_TOGGLE_MODE);
+            ClientUtil.getPlayer().playSound(CompatSoundEvents.UI_BUTTON_CLICK, 1.0f, 1.0f);
             return true;
         }
 
@@ -676,6 +683,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
                             ? AlchemicalTableMk2ScreenHandler.BUTTON_BURN_ALL
                             : AlchemicalTableMk2ScreenHandler.BUTTON_BURN_ONE;
                     this.client.interactionManager.clickButton(this.handler.syncId, burnButton);
+                    ClientUtil.getPlayer().playSound(CompatSoundEvents.UI_BUTTON_CLICK, 1.0f, 1.0f);
                     return true;
                 }
             }
@@ -685,6 +693,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
                 assert this.client != null && this.client.interactionManager != null;
                 this.client.interactionManager.clickButton(this.handler.syncId,
                         AlchemicalTableMk2ScreenHandler.BUTTON_TOGGLE_LEARN);
+                ClientUtil.getPlayer().playSound(CompatSoundEvents.UI_BUTTON_CLICK, 1.0f, 1.0f);
                 return true;
             }
         }
@@ -695,6 +704,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
             if (isInside(mouseX, mouseY, guiX + CONFIRM_X, guiY + CONFIRM_Y, WIDGET_SIZE, WIDGET_SIZE)) {
                 sendUnlearnPacket();
                 unlearnSelection.clear();
+                ClientUtil.getPlayer().playSound(CompatSoundEvents.UI_BUTTON_CLICK, 1.0f, 1.0f);
                 return true;
             }
 
@@ -703,6 +713,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
                 assert this.client != null && this.client.interactionManager != null;
                 this.client.interactionManager.clickButton(this.handler.syncId,
                         AlchemicalTableMk2ScreenHandler.BUTTON_DENY_UNLEARN);
+                ClientUtil.getPlayer().playSound(CompatSoundEvents.UI_BUTTON_CLICK, 1.0f, 1.0f);
                 return true;
             }
         }
