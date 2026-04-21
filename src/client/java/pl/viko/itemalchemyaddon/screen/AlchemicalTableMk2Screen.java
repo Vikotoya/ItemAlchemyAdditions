@@ -346,7 +346,6 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
 
     @Override
     protected void drawForegroundOverride(DrawForegroundArgs args) {
-        super.drawForegroundOverride(args);
         long currentEmc = this.handler.getClientEmc();
         String emcText = NumberFormat.getNumberInstance(Locale.US).format(currentEmc);
         drawText(args.drawObjectDM, TextUtil.literal("EMC: " + emcText), 8, 144, 0x404040);
