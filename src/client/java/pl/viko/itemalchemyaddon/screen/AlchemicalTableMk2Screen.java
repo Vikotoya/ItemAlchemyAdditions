@@ -21,6 +21,7 @@ import net.pitan76.mcpitanlib.api.util.CompatIdentifier;
 import net.pitan76.mcpitanlib.api.util.TextUtil;
 import net.pitan76.mcpitanlib.api.util.client.ClientUtil;
 import net.pitan76.mcpitanlib.api.util.client.RenderUtil;
+import net.pitan76.mcpitanlib.api.util.client.WindowUtil;
 import net.pitan76.mcpitanlib.api.util.item.ItemUtil;
 import net.pitan76.mcpitanlib.midohra.item.MCItems;
 import net.pitan76.mcpitanlib.midohra.nbt.NbtCompound;
@@ -212,7 +213,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
             if (copySlots == null)
                 copySlots = slots.stream().map(slot -> new Slot(slot.inventory, slot.getIndex(), slot.x, slot.y)).collect(Collectors.toList());
 
-            if (ClientUtil.getWindow().getScaledHeight() <= 300) {
+            if (WindowUtil.getWindowScaledHeight() <= 300) {
                 for (Slot slot : slots) {
                     Slot original = copySlots.get(slots.indexOf(slot));
                     handler.slots.set(handler.slots.indexOf(slot), new Slot(slot.inventory, slot.getIndex(), slot.x, original.y - 52));
@@ -231,7 +232,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         super.fixScreen();
 
         rearchitectSlots();
-        if (ClientUtil.getWindow().getScaledHeight() <= 300) {
+        if (WindowUtil.getWindowScaledHeight() <= 300) {
             setBackgroundHeight(200);
             setY((this.height - this.getBackgroundHeight()) / 2 + 12);
             unlearn_toggle_y = 67;
@@ -256,7 +257,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         this.listX = this.x + 30;
         this.listY = this.y + 33;
         this.listWidth = 162;
-        if (ClientUtil.getWindow().getScaledHeight() <= 300) {
+        if (WindowUtil.getWindowScaledHeight() <= 300) {
             this.listHeight = 54;
         } else {
             this.listHeight = 106;
@@ -405,7 +406,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
     protected void drawForegroundOverride(DrawForegroundArgs args) {
         long currentEmc = this.handler.getClientEmc();
         String emcText = NumberFormat.getNumberInstance(Locale.US).format(currentEmc);
-        drawText(args.drawObjectDM, TextUtil.literal("EMC: " + emcText), ClientUtil.getWindow().getScaledHeight() <= 300 ? 26 : 8, upper_gui_bottom, 0x404040);
+        drawText(args.drawObjectDM, TextUtil.literal("EMC: " + emcText), WindowUtil.getWindowScaledHeight() <= 300 ? 26 : 8, upper_gui_bottom, 0x404040);
     }
 
     @Override
@@ -426,7 +427,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         }
 
         // ── Main GUI texture ──
-        if (this.client != null && this.client.getWindow().getScaledHeight() <= 300) {
+        if (this.client != null && WindowUtil.getWindowScaledHeight() <= 300) {
             RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, TEXTURE_200, guiX, guiY, 0, 0,
                     backgroundWidth, backgroundHeight, backgroundWidth, backgroundHeight);
         } else {
@@ -450,7 +451,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
             int tabPixelY = guiY + TAB_Y_OFFSET;
             int iconDx = isActive ? TAB_ICON_ACTIVE_DX : TAB_ICON_INACTIVE_DX;
             int iconDy = isActive ? TAB_ICON_ACTIVE_DY : TAB_ICON_INACTIVE_DY;
-            args.drawObjectDM.getContext().drawItem(itemGroups.get(tabIndex).getIcon(), tabPixelX + iconDx, tabPixelY + iconDy);
+            args.drawObjectDM.getContext().drawItemWithoutEntity(itemGroups.get(tabIndex).getIcon(), tabPixelX + iconDx, tabPixelY + iconDy);
         }
 
         // ── Tab scroll arrows ──
