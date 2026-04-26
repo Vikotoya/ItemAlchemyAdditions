@@ -7,6 +7,10 @@ import net.minecraft.client.gui.screen.ingame.HandledScreen;
 import net.minecraft.item.ItemStack;
 import net.minecraft.screen.slot.Slot;
 import net.pitan76.mcpitanlib.api.client.registry.CompatRegistryClient;
+import net.pitan76.mcpitanlib.api.util.SlotUtil;
+import net.pitan76.mcpitanlib.api.util.client.ClientUtil;
+import net.pitan76.mcpitanlib.api.util.client.MouseUtil;
+import net.pitan76.mcpitanlib.api.util.client.WindowUtil;
 import pl.viko.itemalchemyaddon.mixin.HandledScreenAccessor;
 import pl.viko.itemalchemyaddon.screen.AlchemicalTableMk2Screen;
 import pl.viko.itemalchemyaddon.screen.EmcEditScreen;
@@ -45,8 +49,8 @@ public class ItemAlchemyAddonClient implements ClientModInitializer {
                 ScreenKeyboardEvents.beforeKeyRelease(screen).register((theScreen, key, scancode, mods) -> {
                     if (ModKeyBindings.editEmcKey.toMinecraft().matchesKey(key, scancode)) {
                         HandledScreen<?> handledScreen = (HandledScreen<?>) theScreen;
-                        double mouseX = client.mouse.getX() / client.getWindow().getScaleFactor();
-                        double mouseY = client.mouse.getY() / client.getWindow().getScaleFactor();
+                        double mouseX = MouseUtil.getMouseX() / WindowUtil.getWindow().getScaleFactor();
+                        double mouseY = MouseUtil.getMouseY() / WindowUtil.getWindow().getScaleFactor();
 
                         ItemStack stackToEdit = null;
 
@@ -55,20 +59,20 @@ public class ItemAlchemyAddonClient implements ClientModInitializer {
                             stackToEdit = mk2Screen.getHoveredStackFromList(mouseX, mouseY);
                             if (stackToEdit == null) {
                                 Slot hoveredSlot = ((HandledScreenAccessor) handledScreen).invokeGetSlotAt(mouseX, mouseY);
-                                if (hoveredSlot != null && hoveredSlot.hasStack()) {
-                                    stackToEdit = hoveredSlot.getStack();
+                                if (hoveredSlot != null && SlotUtil.hasStack(hoveredSlot)) {
+                                    stackToEdit = SlotUtil.getStack(hoveredSlot);
                                 }
                             }
                         } else {
                             // Standard slot-based lookup for any other screen
                             Slot hoveredSlot = ((HandledScreenAccessor) handledScreen).invokeGetSlotAt(mouseX, mouseY);
-                            if (hoveredSlot != null && hoveredSlot.hasStack()) {
-                                stackToEdit = hoveredSlot.getStack();
+                            if (hoveredSlot != null && SlotUtil.hasStack(hoveredSlot)) {
+                                stackToEdit = SlotUtil.getStack(hoveredSlot);
                             }
                         }
 
                         if (stackToEdit != null) {
-                            client.setScreen(new EmcEditScreen(screen, stackToEdit));
+                            ClientUtil.setScreen(new EmcEditScreen(screen, stackToEdit));
                         }
                     }
                 });

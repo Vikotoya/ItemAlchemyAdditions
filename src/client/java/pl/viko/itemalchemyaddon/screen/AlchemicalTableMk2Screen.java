@@ -22,6 +22,7 @@ import net.pitan76.mcpitanlib.api.util.TextUtil;
 import net.pitan76.mcpitanlib.api.util.client.ClientUtil;
 import net.pitan76.mcpitanlib.api.util.client.RenderUtil;
 import net.pitan76.mcpitanlib.api.util.client.WindowUtil;
+import net.pitan76.mcpitanlib.api.util.client.widget.TextFieldUtil;
 import net.pitan76.mcpitanlib.api.util.item.ItemUtil;
 import net.pitan76.mcpitanlib.midohra.item.MCItems;
 import net.pitan76.mcpitanlib.midohra.nbt.NbtCompound;
@@ -378,7 +379,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
             }
         }
 
-        String searchText = (searchField != null) ? searchField.getText().toLowerCase(Locale.ROOT) : "";
+        String searchText = (searchField != null) ? TextFieldUtil.getText(searchField).toLowerCase(Locale.ROOT) : "";
         if (!searchText.isEmpty()) {
             filteredItems.removeIf(stack -> {
                 String name = stack.getName().getString().toLowerCase(Locale.ROOT);
@@ -531,7 +532,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
 
         // ── Search field (rendered manually, not via addDrawableChild) ──
         if (this.searchField != null) {
-            this.searchField.render(args.drawObjectDM.getContext(), args.mouseX, args.mouseY, args.delta);
+            TextFieldUtil.render(this.searchField, args);
         }
 
         // ── Item grid ──
@@ -604,7 +605,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
                 int tabIndex = tabScrollIndex + slot;
                 ItemGroup group = this.itemGroups.get(tabIndex);
                 Text tabName = (group.getType() == ItemGroup.Type.SEARCH)
-                        ? Text.literal("All Items")
+                        ? TextUtil.literal("All Items")
                         : group.getDisplayName();
                 args.drawObjectDM.getContext().drawTooltip(this.textRenderer, List.of(tabName), args.mouseX, args.mouseY);
                 break;
