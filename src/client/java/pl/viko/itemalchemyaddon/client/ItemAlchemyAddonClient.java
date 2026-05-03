@@ -4,13 +4,13 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
 import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
 import net.minecraft.client.gui.screen.ingame.HandledScreen;
-import net.minecraft.item.ItemStack;
 import net.minecraft.screen.slot.Slot;
 import net.pitan76.mcpitanlib.api.client.registry.CompatRegistryClient;
 import net.pitan76.mcpitanlib.api.util.SlotUtil;
 import net.pitan76.mcpitanlib.api.util.client.ClientUtil;
 import net.pitan76.mcpitanlib.api.util.client.MouseUtil;
 import net.pitan76.mcpitanlib.api.util.client.WindowUtil;
+import net.pitan76.mcpitanlib.midohra.item.ItemStack;
 import pl.viko.itemalchemyaddon.mixin.HandledScreenAccessor;
 import pl.viko.itemalchemyaddon.screen.AlchemicalTableMk2Screen;
 import pl.viko.itemalchemyaddon.screen.EmcEditScreen;
@@ -60,19 +60,19 @@ public class ItemAlchemyAddonClient implements ClientModInitializer {
                             if (stackToEdit == null) {
                                 Slot hoveredSlot = ((HandledScreenAccessor) handledScreen).invokeGetSlotAt(mouseX, mouseY);
                                 if (hoveredSlot != null && SlotUtil.hasStack(hoveredSlot)) {
-                                    stackToEdit = SlotUtil.getStack(hoveredSlot);
+                                    stackToEdit = ItemStack.of(SlotUtil.getStack(hoveredSlot));
                                 }
                             }
                         } else {
                             // Standard slot-based lookup for any other screen
                             Slot hoveredSlot = ((HandledScreenAccessor) handledScreen).invokeGetSlotAt(mouseX, mouseY);
                             if (hoveredSlot != null && SlotUtil.hasStack(hoveredSlot)) {
-                                stackToEdit = SlotUtil.getStack(hoveredSlot);
+                                stackToEdit = ItemStack.of(SlotUtil.getStack(hoveredSlot));
                             }
                         }
 
                         if (stackToEdit != null) {
-                            ClientUtil.setScreen(new EmcEditScreen(screen, stackToEdit));
+                            ClientUtil.setScreen(new EmcEditScreen(screen, stackToEdit.toMinecraft()));
                         }
                     }
                 });

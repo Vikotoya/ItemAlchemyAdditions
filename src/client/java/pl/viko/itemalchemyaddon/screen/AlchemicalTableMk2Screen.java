@@ -2,13 +2,9 @@ package pl.viko.itemalchemyaddon.screen;
 
 import net.minecraft.client.gui.widget.TextFieldWidget;
 import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.ItemGroup;
-import net.minecraft.item.ItemGroups;
-import net.minecraft.item.ItemStack;
 import net.minecraft.screen.slot.Slot;
 import net.minecraft.text.Text;
 
-import net.minecraft.util.math.MathHelper;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.itemalchemy.ItemAlchemyClient;
 import net.pitan76.itemalchemy.data.TeamState;
@@ -17,14 +13,15 @@ import net.pitan76.mcpitanlib.api.client.render.handledscreen.*;
 import net.pitan76.mcpitanlib.api.network.PacketByteUtil;
 import net.pitan76.mcpitanlib.api.network.v2.ClientNetworking;
 import net.pitan76.mcpitanlib.api.sound.CompatSoundEvents;
+import net.pitan76.mcpitanlib.api.text.TextComponent;
 import net.pitan76.mcpitanlib.api.util.CompatIdentifier;
 import net.pitan76.mcpitanlib.api.util.TextUtil;
 import net.pitan76.mcpitanlib.api.util.client.ClientUtil;
 import net.pitan76.mcpitanlib.api.util.client.RenderUtil;
 import net.pitan76.mcpitanlib.api.util.client.WindowUtil;
 import net.pitan76.mcpitanlib.api.util.client.widget.TextFieldUtil;
-import net.pitan76.mcpitanlib.api.util.item.ItemUtil;
-import net.pitan76.mcpitanlib.midohra.item.MCItems;
+import net.pitan76.mcpitanlib.api.util.math.MathUtil;
+import net.pitan76.mcpitanlib.midohra.item.*;
 import net.pitan76.mcpitanlib.midohra.nbt.NbtCompound;
 import net.pitan76.mcpitanlib.midohra.network.CompatPacketByteBuf;
 import org.jetbrains.annotations.Nullable;
@@ -181,7 +178,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
     private float sliderGrabOffset;
     private int listX, listY, listWidth, listHeight;
 
-    private final List<ItemGroup> itemGroups = new ArrayList<>();
+    private final List<ItemGroupWrapper> itemGroups = new ArrayList<>();
     private int selectedItemGroupIndex;
     private int tabScrollIndex;
 
@@ -265,20 +262,20 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         }
 
         this.itemGroups.clear();
-        for (ItemGroup group : ItemGroups.getGroups()) {
-            ItemGroup.Type type = group.getType();
-            if (type == ItemGroup.Type.HOTBAR || type == ItemGroup.Type.INVENTORY) {
+        for (ItemGroupWrapper group : ItemGroups.getGroups()) {
+            ItemGroupWrapper.Type type = group.getType();
+            if (type == ItemGroupWrapper.Type.HOTBAR || type == ItemGroupWrapper.Type.INVENTORY) {
                 continue;
             }
-            if (type == ItemGroup.Type.CATEGORY && group.getIcon().getItem() == MCItems.COMMAND_BLOCK.get()) {
+            if (type == ItemGroupWrapper.Type.CATEGORY && group.getIcon().getItem().equals(MCItems.COMMAND_BLOCK)) {
                 continue;
             }
             this.itemGroups.add(group);
         }
 
-        ItemGroup searchGroup = null;
-        for (ItemGroup group : this.itemGroups) {
-            if (group.getType() == ItemGroup.Type.SEARCH) {
+        ItemGroupWrapper searchGroup = null;
+        for (ItemGroupWrapper group : this.itemGroups) {
+            if (group.getType() == ItemGroupWrapper.Type.SEARCH) {
                 searchGroup = group;
                 break;
             }
@@ -342,21 +339,21 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
     private void updateItemsBasedOnTab() {
         this.itemsToShow.clear();
 
-        ItemGroup selectedGroup = this.itemGroups.get(this.selectedItemGroupIndex);
+        ItemGroupWrapper selectedGroup = this.itemGroups.get(this.selectedItemGroupIndex);
         Collection<ItemStack> baseItems;
 
-        if (selectedGroup.getType() == ItemGroup.Type.SEARCH) {
+        if (selectedGroup.getType() == ItemGroupWrapper.Type.SEARCH) {
             baseItems = new ArrayList<>();
-            ItemUtil.getItems().forEach(item -> baseItems.add(item.getDefaultStack()));
+            Items.getItems().forEach(item -> baseItems.add(item.createStack()));
         } else {
-            baseItems = selectedGroup.getDisplayStacks();
+            baseItems = selectedGroup.getDisplayItems();
         }
 
         List<ItemStack> filteredItems = new ArrayList<>();
         switch (currentFilterMode) {
             case KNOWN -> {
                 for (ItemStack stack : baseItems) {
-                    if (cachedLearnedIds.contains(ItemUtil.toId(stack.getItem()).toString())) {
+                    if (cachedLearnedIds.contains(stack.getItem().getId().toString())) {
                         filteredItems.add(stack);
                     }
                 }
@@ -365,7 +362,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
             case UNKNOWN -> {
                 for (ItemStack stack : baseItems) {
                     if (EMCManager.get(stack.getItem()) > 0
-                            && !cachedLearnedIds.contains(ItemUtil.toId(stack.getItem()).toString())) {
+                            && !cachedLearnedIds.contains(stack.getItem().getId().toString())) {
                         filteredItems.add(stack);
                     }
                 }
@@ -382,14 +379,14 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         String searchText = (searchField != null) ? TextFieldUtil.getText(searchField).toLowerCase(Locale.ROOT) : "";
         if (!searchText.isEmpty()) {
             filteredItems.removeIf(stack -> {
-                String name = stack.getName().getString().toLowerCase(Locale.ROOT);
-                String id = ItemUtil.toId(stack.getItem()).toString().toLowerCase(Locale.ROOT);
+                String name = stack.getItem().getName().toLowerCase(Locale.ROOT);
+                String id = stack.getItem().getId().toString().toLowerCase(Locale.ROOT);
                 return !name.contains(searchText) && !id.contains(searchText);
             });
         }
 
         switch (currentSortMode) {
-            case ABC -> filteredItems.sort(Comparator.comparing(s -> s.getName().getString()));
+            case ABC -> filteredItems.sort(Comparator.comparing(s -> s.getItem().getName()));
             case EMC_DESC -> filteredItems.sort(
                     Comparator.comparingLong((ItemStack s) -> Math.max(0, EMCManager.get(s.getItem()))).reversed());
             case EMC_ASC -> filteredItems.sort(
@@ -452,7 +449,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
             int tabPixelY = guiY + TAB_Y_OFFSET;
             int iconDx = isActive ? TAB_ICON_ACTIVE_DX : TAB_ICON_INACTIVE_DX;
             int iconDy = isActive ? TAB_ICON_ACTIVE_DY : TAB_ICON_INACTIVE_DY;
-            args.drawObjectDM.getContext().drawItemWithoutEntity(itemGroups.get(tabIndex).getIcon(), tabPixelX + iconDx, tabPixelY + iconDy);
+            RenderUtil.RendererUtil.drawItemWithoutEntity(args.drawObjectDM, itemGroups.get(tabIndex).getIcon(), tabPixelX + iconDx, tabPixelY + iconDy);
         }
 
         // ── Tab scroll arrows ──
@@ -538,50 +535,50 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         // ── Item grid ──
         ItemStack hoveredStack = null;
 
-        args.drawObjectDM.getContext().enableScissor(listX, listY, listX + listWidth, listY + listHeight);
+        RenderUtil.RendererUtil.enableScissor(args.drawObjectDM, listX, listY, listX + listWidth, listY + listHeight);
         for (int i = 0; i < itemsToShow.size(); i++) {
             ItemStack stack = itemsToShow.get(i);
             int itemX = listX + (i % ROW_COUNT) * 18;
             int itemY = listY + (i / ROW_COUNT) * 18 - (int) this.scrollOffset;
             if (itemY >= listY - 18 && itemY < listY + listHeight) {
-                String itemId = ItemUtil.toId(stack.getItem()).toString();
+                String itemId = stack.getItem().getId().toString();
                 boolean isLearned = cachedLearnedIds.contains(itemId);
                 boolean hasEmc = EMCManager.get(stack.getItem()) > 0;
 
-                args.drawObjectDM.getContext().drawItem(stack, itemX, itemY);
+                RenderUtil.RendererUtil.drawItem(args.drawObjectDM, stack, itemX, itemY);
 
                 // Unlearned items with EMC: background-colored overlay to simulate transparency
                 if (hasEmc && !isLearned) {
-                    args.drawObjectDM.getContext().getMatrices().push();
-                    args.drawObjectDM.getContext().getMatrices().translate(0, 0, 200);
-                    args.drawObjectDM.getContext().fill(itemX, itemY, itemX + 16, itemY + 16, 0x808B8B8B);
-                    args.drawObjectDM.getContext().getMatrices().pop();
+                    args.drawObjectDM.getMatrixStack().push();
+                    args.drawObjectDM.getMatrixStack().translate(0, 0, 200);
+                    RenderUtil.RendererUtil.fill(args.drawObjectDM, itemX, itemY, itemX + 16, itemY + 16, 0x808B8B8B);
+                    args.drawObjectDM.getMatrixStack().pop();
                 }
 
                 // Items without EMC: small_cross overlay (in every filter mode)
                 if (!hasEmc) {
-                    args.drawObjectDM.getContext().getMatrices().push();
-                    args.drawObjectDM.getContext().getMatrices().translate(0, 0, 200);
+                    args.drawObjectDM.getMatrixStack().push();
+                    args.drawObjectDM.getMatrixStack().translate(0, 0, 200);
                     RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, SMALL_CROSS_TEX,
                             itemX, itemY, 0, 0, 16, 16, 16, 16);
-                    args.drawObjectDM.getContext().getMatrices().pop();
+                    args.drawObjectDM.getMatrixStack().pop();
                 }
 
                 if (getMode() == GuiMode.UNLEARNING && unlearnSelection.contains(itemId)) {
-                    args.drawObjectDM.getContext().getMatrices().push();
-                    args.drawObjectDM.getContext().getMatrices().translate(0, 0, 200);
+                    args.drawObjectDM.getMatrixStack().push();
+                    args.drawObjectDM.getMatrixStack().translate(0, 0, 200);
                     RenderUtil.RendererUtil.drawTexture(args.drawObjectDM, CROSS_ICON_TEX,
                             itemX - 1, itemY - 1, 0, 0, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE, WIDGET_SIZE);
-                    args.drawObjectDM.getContext().getMatrices().pop();
+                    args.drawObjectDM.getMatrixStack().pop();
                 }
 
                 if (args.mouseX >= itemX && args.mouseX < itemX + 16 && args.mouseY >= itemY && args.mouseY < itemY + 16) {
-                    args.drawObjectDM.getContext().fill(itemX, itemY, itemX + 16, itemY + 16, 0x80FFFFFF);
+                    RenderUtil.RendererUtil.fill(args.drawObjectDM, itemX, itemY, itemX + 16, itemY + 16, 0x80FFFFFF);
                     hoveredStack = stack;
                 }
             }
         }
-        args.drawObjectDM.getContext().disableScissor();
+        RenderUtil.RendererUtil.disableScissor(args.drawObjectDM);
 
         // ── Custom scrollbar ──
         int maxScroll = Math.max(0, (itemsToShow.size() + ROW_COUNT - 1) / ROW_COUNT * 18 - listHeight);
@@ -603,11 +600,11 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
             int tabPixelY = guiY + TAB_Y_OFFSET;
             if (isInside(args.mouseX, args.mouseY, tabPixelX, tabPixelY, TAB_W, TAB_H)) {
                 int tabIndex = tabScrollIndex + slot;
-                ItemGroup group = this.itemGroups.get(tabIndex);
-                Text tabName = (group.getType() == ItemGroup.Type.SEARCH)
-                        ? TextUtil.literal("All Items")
+                ItemGroupWrapper group = this.itemGroups.get(tabIndex);
+                TextComponent tabName = (group.getType() == ItemGroupWrapper.Type.SEARCH)
+                        ? TextComponent.of("All Items")
                         : group.getDisplayName();
-                args.drawObjectDM.getContext().drawTooltip(this.textRenderer, List.of(tabName), args.mouseX, args.mouseY);
+                RenderUtil.RendererUtil.drawTooltip(args.drawObjectDM, this.textRenderer, List.of(tabName.getText()), args.mouseX, args.mouseY);
                 break;
             }
         }
@@ -615,7 +612,9 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         // ── Item tooltip ──
         callDrawMouseoverTooltip(new DrawMouseoverTooltipArgs(args.drawObjectDM, args.mouseX, args.mouseY));
         if (hoveredStack != null) {
-            args.drawObjectDM.getContext().drawTooltip(this.textRenderer, getTooltipFromItem(this.client, hoveredStack), args.mouseX, args.mouseY);
+            RenderUtil.RendererUtil.drawTooltip(args.drawObjectDM, this.textRenderer,
+                    hoveredStack.getTooltip().stream().map(TextComponent::getText).collect(Collectors.toList()),
+                    args.mouseX, args.mouseY);
         }
     }
 
@@ -635,33 +634,40 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
     }
 
     @Override
-    public boolean charTyped(char chr, int modifiers) {
+    public boolean charTyped(CharEventArgs args) {
         if (searchField != null && searchField.isFocused()) {
-            return searchField.charTyped(chr, modifiers);
+            return searchField.charTyped(args.getChar(), args.getModifiers()); // TODO: field.chartyped
         }
-        return super.charTyped(chr, modifiers);
+        return super.charTyped(args);
     }
 
     @Override
-    public boolean mouseScrolled(double mouseX, double mouseY, double amount) {
+    public boolean mouseScrolled(MouseScrolledArgs args) {
+        double mouseY = args.getMouseY();
+        double amount = args.getAmount();
+
         if (mouseY >= this.y + TAB_Y_OFFSET && mouseY < this.y + TAB_Y_OFFSET + TAB_H) {
             int maxTabScroll = Math.max(0, itemGroups.size() - MAX_VISIBLE_TABS);
             if (maxTabScroll > 0) {
                 tabScrollIndex += (amount > 0) ? -1 : 1;
-                tabScrollIndex = MathHelper.clamp(tabScrollIndex, 0, maxTabScroll);
+                tabScrollIndex = MathUtil.clamp(tabScrollIndex, 0, maxTabScroll);
             }
             return true;
         }
 
         int maxScroll = Math.max(0, (itemsToShow.size() + ROW_COUNT - 1) / ROW_COUNT * 18 - listHeight);
-        this.scrollOffset = (float) MathHelper.clamp(this.scrollOffset - amount * 10, 0, maxScroll);
+        this.scrollOffset = (float) MathUtil.clamp(this.scrollOffset - amount * 10, 0, maxScroll);
         return true;
     }
 
     @Override
-    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+    public boolean mouseClicked(MouseClickedArgs args) {
         int guiX = this.x;
         int guiY = this.y;
+
+        double mouseX = args.getX();
+        double mouseY = args.getY();
+        int button = args.getButton();
 
         // Always defocus search field first; refocus only if clicking its activation area
         if (searchField != null) {
@@ -805,7 +811,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
 
                 if (getMode() == GuiMode.UNLEARNING) {
                     if (button == 0) {
-                        String itemId = ItemUtil.toId(clickedStack.getItem()).toString();
+                        String itemId = clickedStack.getItem().getId().toString();
                         if (!unlearnSelection.remove(itemId)) {
                             unlearnSelection.add(itemId);
                         }
@@ -813,7 +819,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
                         return true;
                     }
                 } else {
-                    String itemId = ItemUtil.toId(clickedStack.getItem()).toString();
+                    String itemId = clickedStack.getItem().getId().toString();
                     if (!cachedLearnedIds.contains(itemId)) {
                         return true;
                     }
@@ -824,10 +830,10 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
                     else if (button == 1 && !isShiftDown)  clickType = 1;
                     else if (button == 0)                   clickType = 2;
                     else if (button == 1)                   clickType = 3;
-                    else return super.mouseClicked(mouseX, mouseY, button);
+                    else return super.mouseClicked(args);
 
                     CompatPacketByteBuf buf = CompatPacketByteBuf.create();
-                    PacketByteUtil.writeItemStack(buf, clickedStack);
+                    PacketByteUtil.writeItemStack(buf, clickedStack.toMinecraft()); // TODO: avoid toMinecraft conversion
                     PacketByteUtil.writeInt(buf, clickType);
                     ClientNetworking.send(ModMessages.REQUEST_ITEM_ID, buf);
                     return true;
@@ -835,15 +841,17 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
             }
         }
 
-        return super.mouseClicked(mouseX, mouseY, button);
+        return super.mouseClicked(args);
     }
 
     @Override
-    public boolean mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY) {
+    public boolean mouseDragged(MouseDraggedArgs args) {
+        double mouseX = args.getX();
+        double mouseY = args.getY();
         if (isDragSelecting && getMode() == GuiMode.UNLEARNING) {
             ItemStack hoveredStack = getHoveredStackFromList(mouseX, mouseY);
             if (hoveredStack != null) {
-                unlearnSelection.add(ItemUtil.toId(hoveredStack.getItem()).toString());
+                unlearnSelection.add(hoveredStack.getItem().getId().toString());
             }
             return true;
         }
@@ -853,16 +861,16 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
             return true;
         }
 
-        return super.mouseDragged(mouseX, mouseY, button, deltaX, deltaY);
+        return super.mouseDragged(args);
     }
 
     @Override
-    public boolean mouseReleased(double mouseX, double mouseY, int button) {
-        if (button == 0) {
+    public boolean mouseReleased(MouseReleasedArgs args) {
+        if (args.button == 0) {
             this.isDragging = false;
             this.isDragSelecting = false;
         }
-        return super.mouseReleased(mouseX, mouseY, button);
+        return super.mouseReleased(args);
     }
 
     // ── Private helpers ──────────────────────────────────────────────────
@@ -875,7 +883,7 @@ public class AlchemicalTableMk2Screen extends SimpleHandledScreen<AlchemicalTabl
         int maxScroll = Math.max(1, (itemsToShow.size() + ROW_COUNT - 1) / ROW_COUNT * 18 - listHeight);
         float sliderTop = (float) (mouseY - sliderGrabOffset - this.y - SLIDER_TOP_Y);
         float scrollRange = SLIDER_BOTTOM_Y - SLIDER_TOP_Y;
-        this.scrollOffset = MathHelper.clamp(sliderTop / scrollRange * maxScroll, 0, maxScroll);
+        this.scrollOffset = MathUtil.clamp(sliderTop / scrollRange * maxScroll, 0, maxScroll);
     }
 
     private void sendUnlearnPacket() {
