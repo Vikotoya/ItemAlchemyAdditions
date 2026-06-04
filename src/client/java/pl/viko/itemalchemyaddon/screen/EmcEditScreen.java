@@ -58,10 +58,11 @@ public class EmcEditScreen extends SimpleScreen {
     public boolean keyPressed(KeyEventArgs args) {
         int keyCode = args.keyCode;
         int scanCode = args.scanCode;
+        int modifiers = args.modifiers;
 
         // Consume the first press of the "edit EMC" key to prevent the
         // screen from immediately reopening when the key is released.
-        if (!keyHandled && ModKeyBindings.editEmcKey.toMinecraft().matchesKey(keyCode, scanCode)) {
+        if (!keyHandled && ModKeyBindings.editEmcKey.matches(keyCode, scanCode, modifiers)) {
             keyHandled = true;
             return true;
         }

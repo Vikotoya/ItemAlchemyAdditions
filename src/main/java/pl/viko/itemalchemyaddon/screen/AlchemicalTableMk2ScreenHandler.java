@@ -7,7 +7,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.screen.ArrayPropertyDelegate;
 import net.minecraft.screen.PropertyDelegate;
 import net.minecraft.screen.slot.Slot;
-import net.minecraft.server.MinecraftServer;
 import net.pitan76.itemalchemy.EMCManager;
 import net.pitan76.itemalchemy.data.ModState;
 import net.pitan76.itemalchemy.data.ServerState;
@@ -19,6 +18,7 @@ import net.pitan76.mcpitanlib.api.util.ItemStackUtil;
 import net.pitan76.mcpitanlib.api.util.ScreenHandlerUtil;
 import net.pitan76.mcpitanlib.api.util.SlotUtil;
 import net.pitan76.mcpitanlib.api.util.item.ItemUtil;
+import net.pitan76.mcpitanlib.midohra.server.MCServer;
 
 import java.util.Optional;
 
@@ -218,7 +218,7 @@ public class AlchemicalTableMk2ScreenHandler extends SimpleScreenHandler {
         EMCManager.incrementEmc(this.player, emcPerItem * count);
 
         if (isLearnEnabled()) {
-            MinecraftServer server = player.getMidohraWorld().getServer();
+            MCServer server = player.getMidohraWorld().getMCServer();
 
             Optional<TeamState> teamState = ModState.getModState(server)
                     .getTeamByPlayer(player.getUUID());
